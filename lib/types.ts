@@ -107,3 +107,44 @@ export interface Alert {
   target?: number;
   actions: string[];
 }
+
+// Action management types
+export type ActionStatus = 'pending' | 'in_progress' | 'completed' | 'overdue';
+export type ActionPriority = 'high' | 'medium' | 'low';
+export type ActionCategory = 'project' | 'branch' | 'segment';
+
+export interface ActionItem {
+  id: string;
+  category: ActionCategory;
+  targetName: string;
+  issue: string;
+  action: string;
+  assignee: string;
+  dueDate: string;
+  status: ActionStatus;
+  priority: ActionPriority;
+  createdAt: string;
+  updatedAt: string;
+  comments: ActionComment[];
+  metrics?: {
+    before: number;
+    current: number;
+    target: number;
+  };
+}
+
+export interface ActionComment {
+  id: string;
+  author: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface IssueTarget {
+  category: ActionCategory;
+  name: string;
+  issue: string;
+  currentValue: number;
+  targetValue: number;
+  priority: ActionPriority;
+}
