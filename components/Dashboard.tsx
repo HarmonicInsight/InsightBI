@@ -12,6 +12,7 @@ import SalesSimulation from '@/components/SalesSimulation';
 import ActionTracker from '@/components/ActionTracker';
 import ActionSummaryWidget from '@/components/ActionSummaryWidget';
 import NotificationSystem from '@/components/NotificationSystem';
+import TimeSeriesChart from '@/components/TimeSeriesChart';
 import { PerformanceData } from '@/lib/types';
 import { DashboardData } from '@/lib/processData';
 
@@ -64,6 +65,15 @@ const tabs = [
     icon: (
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+      </svg>
+    ),
+  },
+  {
+    id: 'timeseries',
+    label: '時系列',
+    icon: (
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
   },
@@ -405,6 +415,13 @@ export default function Dashboard({ data, diData }: DashboardProps) {
           {activeTab === 'simulation' && (
             <div className="grid grid-cols-1 gap-4">
               <SalesSimulation salesSimulation={data.salesSimulation} />
+            </div>
+          )}
+
+          {/* 時系列分析タブ */}
+          {activeTab === 'timeseries' && (
+            <div className="h-full overflow-auto">
+              <TimeSeriesChart />
             </div>
           )}
 

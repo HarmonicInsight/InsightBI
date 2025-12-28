@@ -218,3 +218,109 @@ export interface IssueTarget {
   targetValue: number;
   priority: ActionPriority;
 }
+
+// ============================================
+// 時系列分析用の型定義
+// ============================================
+
+// 観測時点の種類
+export type SnapshotType = 'actual' | 'forecast' | 'budget';
+
+// 分析期間の種類
+export type AnalysisPeriod =
+  | 'ytd'           // 年度累計 (Year To Date)
+  | 'q1' | 'q2' | 'q3' | 'q4'  // 四半期
+  | 'monthly'       // 月次
+  | 'full_year';    // 通期
+
+// 月次データポイント
+export interface MonthlyDataPoint {
+  period: string;              // "2025-04", "2025-05", etc.
+  revenue: number;
+  grossProfit: number;
+  grossMarginRate: number;
+  type: SnapshotType;          // 実績/見通し/予算
+}
+
+// 支社別月次データ
+export interface BranchMonthlyData {
+  branch: string;
+  monthly: MonthlyDataPoint[];
+  segments: {
+    [segmentName: string]: MonthlyDataPoint[];
+  };
+}
+
+// 予実比較データ
+export interface BudgetActualComparison {
+  period: string;
+  budget: number;
+  forecast: number;
+  actual: number | null;       // 未確定月はnull
+  budgetVariance: number;      // 予算差異 (actual - budget)
+  budgetVarianceRate: number;  // 予算差異率
+  yoyActual: number | null;    // 前年実績
+  yoyChange: number | null;    // 前年比変動率
+}
+
+// 時系列サマリー
+export interface TimeSeriesSummary {
+  fiscalYear: string;
+  currentMonth: string;        // 現在の観測月 "2025-09"
+
+  // 各期間の集計
+  ytd: {
+    budget: number;
+    forecast: number;
+    actual: number;
+    achievementRate: number;   // 予算達成率
+  };
+
+  fullYear: {
+    budget: number;
+    forecast: number;
+    forecastChangeFromInitial: number; // 期初見通しからの変動
+  };
+
+  // 前年比
+  yoyComparison: {
+    revenueChange: number;
+    profitChange: number;
+    marginChange: number;
+  };
+}
+
+// 時系列データ全体
+export interface TimeSeriesData {
+  fiscalYear: string;
+  asOfDate: string;            // データ基準日
+  months: string[];            // ["2025-04", "2025-05", ...]
+
+  summary: TimeSeriesSummary;
+
+  // 全社月次推移
+  companyMonthly: {
+    revenue: BudgetActualComparison[];
+    grossProfit: BudgetActualComparison[];
+  };
+
+  // 支社別時系列
+  branchTimeSeries: BranchMonthlyData[];
+
+  // 見通し変動履歴（いつ時点でいくらと予想したか）
+  forecastHistory: {
+    asOfMonth: string;         // "2025-04", "2025-06", "2025-09"
+    fullYearForecast: number;
+    note?: string;
+  }[];
+}
+
+// 期間セレクターの状態
+export interface PeriodSelectorState {
+  asOfMonth: string;           // 観測時点
+  analysisPeriod: AnalysisPeriod;
+  comparisonMode: 'yoy' | 'budget' | 'none';
+  showBudget: boolean;
+  showForecast: boolean;
+  showActual: boolean;
+}
