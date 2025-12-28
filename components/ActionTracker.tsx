@@ -52,11 +52,21 @@ const DEMO_USERS = [
 
 const CURRENT_USER = DEMO_USERS[0];
 
+type UserFilter = 'all' | 'mine' | 'watching';
+type DateFilter = 'all' | 'overdue' | 'this_week' | 'this_month' | 'this_quarter';
+type SortOption = 'due_date' | 'priority' | 'updated' | 'created';
+
 export default function ActionTracker({ data }: ActionTrackerProps) {
   const [actions, setActions] = useState<EnhancedActionItem[]>(() => generateInitialActions());
   const [selectedAction, setSelectedAction] = useState<EnhancedActionItem | null>(null);
   const [filterStatus, setFilterStatus] = useState<ActionStatus | 'all'>('all');
   const [filterCategory, setFilterCategory] = useState<ActionCategory | 'all'>('all');
+  const [filterUser, setFilterUser] = useState<UserFilter>('all');
+  const [filterDate, setFilterDate] = useState<DateFilter>('all');
+  const [filterAssignee, setFilterAssignee] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('due_date');
+  const [showArchived, setShowArchived] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [showMentionList, setShowMentionList] = useState(false);
   const [mentionSearch, setMentionSearch] = useState('');
@@ -101,12 +111,83 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
   }, [data]);
 
   const filteredActions = useMemo(() => {
-    return actions.filter(action => {
+    const now = new Date();
+    const weekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const monthLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const quarterLater = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+
+    let filtered = actions.filter(action => {
+      // Status filter
       if (filterStatus !== 'all' && action.status !== filterStatus) return false;
+
+      // Category filter
       if (filterCategory !== 'all' && action.category !== filterCategory) return false;
+
+      // User filter
+      if (filterUser === 'mine' && action.assignee !== CURRENT_USER.name) return false;
+      if (filterUser === 'watching' && !action.watchers.includes(CURRENT_USER.name)) return false;
+
+      // Assignee filter
+      if (filterAssignee !== 'all' && action.assignee !== filterAssignee) return false;
+
+      // Date filter
+      if (filterDate !== 'all') {
+        const dueDate = new Date(action.dueDate);
+        switch (filterDate) {
+          case 'overdue':
+            if (dueDate >= now || action.status === 'completed') return false;
+            break;
+          case 'this_week':
+            if (dueDate > weekLater || action.status === 'completed') return false;
+            break;
+          case 'this_month':
+            if (dueDate > monthLater || action.status === 'completed') return false;
+            break;
+          case 'this_quarter':
+            if (dueDate > quarterLater || action.status === 'completed') return false;
+            break;
+        }
+      }
+
+      // Archive filter (completed actions older than 30 days)
+      if (!showArchived && action.status === 'completed') {
+        const completedDate = new Date(action.updatedAt);
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        if (completedDate < thirtyDaysAgo) return false;
+      }
+
+      // Search query
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesTarget = action.targetName.toLowerCase().includes(query);
+        const matchesIssue = action.issue.toLowerCase().includes(query);
+        const matchesAction = action.action.toLowerCase().includes(query);
+        const matchesAssignee = action.assignee.toLowerCase().includes(query);
+        if (!matchesTarget && !matchesIssue && !matchesAction && !matchesAssignee) return false;
+      }
+
       return true;
     });
-  }, [actions, filterStatus, filterCategory]);
+
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'due_date':
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        case 'priority':
+          const priorityOrder = { high: 0, medium: 1, low: 2 };
+          return priorityOrder[a.priority] - priorityOrder[b.priority];
+        case 'updated':
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        case 'created':
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [actions, filterStatus, filterCategory, filterUser, filterDate, filterAssignee, searchQuery, sortBy, showArchived]);
 
   const stats = useMemo(() => {
     const total = actions.length;
@@ -842,21 +923,84 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
         </div>
 
         {/* Middle: Action List */}
-        <div className="col-span-3 bg-white rounded-lg shadow-sm border">
-          <div className="p-3 border-b">
-            <h3 className="font-semibold text-gray-900 text-sm">アクション一覧</h3>
-            <div className="flex gap-1 mt-2">
+        <div className="col-span-4 bg-white rounded-lg shadow-sm border">
+          <div className="p-3 border-b space-y-2">
+            {/* Header with search */}
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 text-sm">アクション一覧</h3>
+              <span className="text-xs text-gray-500">{filteredActions.length}件</span>
+            </div>
+
+            {/* Search */}
+            <div className="relative">
+              <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="案件名、課題、担当者で検索..."
+                className="w-full pl-8 pr-3 py-1.5 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            {/* Quick filters */}
+            <div className="flex gap-1">
+              <button
+                onClick={() => setFilterUser('mine')}
+                className={`px-2 py-1 text-xs rounded transition-colors ${
+                  filterUser === 'mine' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                自分の担当
+              </button>
+              <button
+                onClick={() => setFilterUser('watching')}
+                className={`px-2 py-1 text-xs rounded transition-colors ${
+                  filterUser === 'watching' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                ウォッチ中
+              </button>
+              <button
+                onClick={() => setFilterUser('all')}
+                className={`px-2 py-1 text-xs rounded transition-colors ${
+                  filterUser === 'all' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                全員
+              </button>
+            </div>
+
+            {/* Filters row 1 */}
+            <div className="flex gap-1">
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value as ActionStatus | 'all')}
                 className="text-xs border rounded px-1.5 py-1 flex-1"
               >
-                <option value="all">全て</option>
+                <option value="all">全ステータス</option>
                 <option value="pending">未着手</option>
                 <option value="in_progress">進行中</option>
                 <option value="completed">完了</option>
                 <option value="overdue">期限超過</option>
               </select>
+              <select
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value as DateFilter)}
+                className="text-xs border rounded px-1.5 py-1 flex-1"
+              >
+                <option value="all">全期間</option>
+                <option value="overdue">期限切れ</option>
+                <option value="this_week">今週期限</option>
+                <option value="this_month">今月期限</option>
+                <option value="this_quarter">3ヶ月以内</option>
+              </select>
+            </div>
+
+            {/* Filters row 2 */}
+            <div className="flex gap-1">
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value as ActionCategory | 'all')}
@@ -867,9 +1011,45 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
                 <option value="branch">支社</option>
                 <option value="segment">セグメント</option>
               </select>
+              <select
+                value={filterAssignee}
+                onChange={(e) => setFilterAssignee(e.target.value)}
+                className="text-xs border rounded px-1.5 py-1 flex-1"
+              >
+                <option value="all">全担当者</option>
+                {DEMO_USERS.map(user => (
+                  <option key={user.id} value={user.name}>{user.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sort and archive */}
+            <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-500">並び替え:</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortOption)}
+                  className="text-xs border rounded px-1.5 py-0.5"
+                >
+                  <option value="due_date">期限順</option>
+                  <option value="priority">優先度順</option>
+                  <option value="updated">更新順</option>
+                  <option value="created">作成順</option>
+                </select>
+              </div>
+              <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showArchived}
+                  onChange={(e) => setShowArchived(e.target.checked)}
+                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                アーカイブ表示
+              </label>
             </div>
           </div>
-          <div className="divide-y max-h-[calc(100vh-380px)] overflow-y-auto">
+          <div className="divide-y max-h-[calc(100vh-480px)] overflow-y-auto">
             {filteredActions.map(action => (
               <div
                 key={action.id}
@@ -919,7 +1099,7 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
         </div>
 
         {/* Right: Action Detail with Thread */}
-        <div className="col-span-6 bg-white rounded-lg shadow-sm border flex flex-col max-h-[calc(100vh-280px)]">
+        <div className="col-span-5 bg-white rounded-lg shadow-sm border flex flex-col max-h-[calc(100vh-280px)]">
           {selectedAction ? (
             <>
               {/* Header */}

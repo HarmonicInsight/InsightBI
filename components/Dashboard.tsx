@@ -10,6 +10,7 @@ import RemainingWork from '@/components/RemainingWork';
 import ProfitImprovement from '@/components/ProfitImprovement';
 import SalesSimulation from '@/components/SalesSimulation';
 import ActionTracker from '@/components/ActionTracker';
+import ActionSummaryWidget from '@/components/ActionSummaryWidget';
 import { PerformanceData } from '@/lib/types';
 import { DashboardData } from '@/lib/processData';
 
@@ -349,12 +350,15 @@ export default function Dashboard({ data, diData }: DashboardProps) {
                   </div>
                 )}
               </div>
-              {/* Right: KPI Cards */}
+              {/* Right: KPI Cards + Action Widget */}
               <div className="space-y-4">
                 <KPISummary
                   summary={data.summary}
                   targets={data.targets}
                   thresholds={data.thresholds}
+                />
+                <ActionSummaryWidget
+                  onNavigateToActions={() => setActiveTab('action')}
                 />
               </div>
             </div>
