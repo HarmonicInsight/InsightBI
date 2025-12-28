@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   PerformanceData,
   ActionItem,
@@ -15,22 +15,62 @@ interface ActionTrackerProps {
   data: PerformanceData;
 }
 
-const DEMO_ASSIGNEES = ['山田太郎', '佐藤花子', '鈴木一郎', '田中美咲', '高橋健二'];
+interface ActivityEvent {
+  id: string;
+  type: 'comment' | 'status_change' | 'created' | 'assignee_change' | 'subtask';
+  author: string;
+  content: string;
+  createdAt: string;
+  metadata?: {
+    from?: string;
+    to?: string;
+    mentions?: string[];
+    reactions?: { emoji: string; users: string[] }[];
+  };
+}
+
+interface SubTask {
+  id: string;
+  content: string;
+  completed: boolean;
+  assignee?: string;
+}
+
+interface EnhancedActionItem extends ActionItem {
+  activities: ActivityEvent[];
+  subTasks: SubTask[];
+  watchers: string[];
+}
+
+const DEMO_USERS = [
+  { id: '1', name: '山田太郎', avatar: 'YT', role: '部長' },
+  { id: '2', name: '佐藤花子', avatar: 'SH', role: 'マネージャー' },
+  { id: '3', name: '鈴木一郎', avatar: 'SI', role: 'リーダー' },
+  { id: '4', name: '田中美咲', avatar: 'TM', role: '担当' },
+  { id: '5', name: '高橋健二', avatar: 'TK', role: '担当' },
+];
+
+const CURRENT_USER = DEMO_USERS[0];
 
 export default function ActionTracker({ data }: ActionTrackerProps) {
-  const [actions, setActions] = useState<ActionItem[]>(() => generateInitialActions());
-  const [selectedAction, setSelectedAction] = useState<ActionItem | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [actions, setActions] = useState<EnhancedActionItem[]>(() => generateInitialActions());
+  const [selectedAction, setSelectedAction] = useState<EnhancedActionItem | null>(null);
   const [filterStatus, setFilterStatus] = useState<ActionStatus | 'all'>('all');
   const [filterCategory, setFilterCategory] = useState<ActionCategory | 'all'>('all');
   const [newComment, setNewComment] = useState('');
+  const [showMentionList, setShowMentionList] = useState(false);
+  const [mentionSearch, setMentionSearch] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ action: '', assignee: '', dueDate: '' });
+  const [newSubTask, setNewSubTask] = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'timeline'>('list');
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Detect issues from performance data
   const detectedIssues = useMemo((): IssueTarget[] => {
     const issues: IssueTarget[] = [];
     const marginThreshold = data.thresholds.marginWarning;
 
-    // Check branch performance
     data.branchPerformance.forEach(branch => {
       if (branch.total.grossMargin < marginThreshold) {
         issues.push({
@@ -43,7 +83,6 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
         });
       }
 
-      // Check each segment within branch
       Object.entries(branch.segments).forEach(([segmentName, segment]) => {
         if (segment.grossMargin < marginThreshold) {
           issues.push({
@@ -61,7 +100,6 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
     return issues;
   }, [data]);
 
-  // Filter actions
   const filteredActions = useMemo(() => {
     return actions.filter(action => {
       if (filterStatus !== 'all' && action.status !== filterStatus) return false;
@@ -70,17 +108,22 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
     });
   }, [actions, filterStatus, filterCategory]);
 
-  // Statistics
   const stats = useMemo(() => {
     const total = actions.length;
     const pending = actions.filter(a => a.status === 'pending').length;
     const inProgress = actions.filter(a => a.status === 'in_progress').length;
     const completed = actions.filter(a => a.status === 'completed').length;
     const overdue = actions.filter(a => a.status === 'overdue').length;
-    return { total, pending, inProgress, completed, overdue };
+    const thisWeekDue = actions.filter(a => {
+      const due = new Date(a.dueDate);
+      const now = new Date();
+      const weekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      return due <= weekLater && a.status !== 'completed';
+    }).length;
+    return { total, pending, inProgress, completed, overdue, thisWeekDue };
   }, [actions]);
 
-  function generateInitialActions(): ActionItem[] {
+  function generateInitialActions(): EnhancedActionItem[] {
     const now = new Date();
     return [
       {
@@ -95,15 +138,63 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
         priority: 'high',
         createdAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
         updatedAt: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        comments: [
-          {
-            id: 'c1',
-            author: '山田太郎',
-            content: '分析を開始しました。来週中にレポートを提出予定です。',
-            createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()
-          }
+        comments: [],
+        metrics: { before: 8.5, current: 9.2, target: 14.0 },
+        watchers: ['佐藤花子', '鈴木一郎'],
+        subTasks: [
+          { id: 's1', content: '過去6ヶ月のプロジェクトデータを収集', completed: true, assignee: '田中美咲' },
+          { id: 's2', content: '低採算案件のリストアップ', completed: true, assignee: '田中美咲' },
+          { id: 's3', content: '原因分析レポート作成', completed: false, assignee: '山田太郎' },
+          { id: 's4', content: '改善施策の提案', completed: false, assignee: '山田太郎' },
         ],
-        metrics: { before: 8.5, current: 9.2, target: 14.0 }
+        activities: [
+          {
+            id: 'a1',
+            type: 'created',
+            author: '佐藤花子',
+            content: 'アクションを作成しました',
+            createdAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          {
+            id: 'a2',
+            type: 'assignee_change',
+            author: '佐藤花子',
+            content: '担当者を変更しました',
+            createdAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+            metadata: { from: '未定', to: '山田太郎' }
+          },
+          {
+            id: 'a3',
+            type: 'status_change',
+            author: '山田太郎',
+            content: 'ステータスを変更しました',
+            createdAt: new Date(now.getTime() - 2.5 * 24 * 60 * 60 * 1000).toISOString(),
+            metadata: { from: '未着手', to: '進行中' }
+          },
+          {
+            id: 'a4',
+            type: 'comment',
+            author: '山田太郎',
+            content: '分析を開始しました。@佐藤花子 来週中にレポートを提出予定です。進捗があればまた報告します。',
+            createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+            metadata: { mentions: ['佐藤花子'], reactions: [{ emoji: '👍', users: ['佐藤花子', '鈴木一郎'] }] }
+          },
+          {
+            id: 'a5',
+            type: 'subtask',
+            author: '田中美咲',
+            content: 'サブタスク「過去6ヶ月のプロジェクトデータを収集」を完了しました',
+            createdAt: new Date(now.getTime() - 1.5 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          {
+            id: 'a6',
+            type: 'comment',
+            author: '佐藤花子',
+            content: '@山田太郎 ありがとうございます。分析結果を楽しみにしています。特に大型案件の収益性について詳しく見てください。',
+            createdAt: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+            metadata: { mentions: ['山田太郎'] }
+          },
+        ]
       },
       {
         id: '2',
@@ -118,7 +209,18 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
         createdAt: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
         updatedAt: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
         comments: [],
-        metrics: { before: 11.2, current: 11.2, target: 15.0 }
+        metrics: { before: 11.2, current: 11.2, target: 15.0 },
+        watchers: ['山田太郎'],
+        subTasks: [],
+        activities: [
+          {
+            id: 'a1',
+            type: 'created',
+            author: '山田太郎',
+            content: 'アクションを作成しました',
+            createdAt: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+        ]
       },
       {
         id: '3',
@@ -132,15 +234,39 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
         priority: 'high',
         createdAt: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString(),
         updatedAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-        comments: [
-          {
-            id: 'c2',
-            author: '鈴木一郎',
-            content: '顧客との調整が難航しています。上長のサポートをお願いします。',
-            createdAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString()
-          }
+        comments: [],
+        metrics: { before: -5.2, current: -3.1, target: 10.0 },
+        watchers: ['山田太郎', '佐藤花子'],
+        subTasks: [
+          { id: 's1', content: '追加工数の詳細分析', completed: true },
+          { id: 's2', content: '顧客への説明資料作成', completed: false },
+          { id: 's3', content: '交渉ミーティングの設定', completed: false },
         ],
-        metrics: { before: -5.2, current: -3.1, target: 10.0 }
+        activities: [
+          {
+            id: 'a1',
+            type: 'created',
+            author: '佐藤花子',
+            content: 'アクションを作成しました',
+            createdAt: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          {
+            id: 'a2',
+            type: 'comment',
+            author: '鈴木一郎',
+            content: '@山田太郎 @佐藤花子 顧客との調整が難航しています。上長のサポートをお願いできますか？先方は追加請求に難色を示しています。',
+            createdAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+            metadata: { mentions: ['山田太郎', '佐藤花子'], reactions: [{ emoji: '👀', users: ['山田太郎'] }] }
+          },
+          {
+            id: 'a3',
+            type: 'comment',
+            author: '山田太郎',
+            content: '@鈴木一郎 了解しました。来週の顧客ミーティングに同席します。事前に資料を共有してください。',
+            createdAt: new Date(now.getTime() - 2.5 * 24 * 60 * 60 * 1000).toISOString(),
+            metadata: { mentions: ['鈴木一郎'], reactions: [{ emoji: '🙏', users: ['鈴木一郎'] }] }
+          },
+        ]
       },
       {
         id: '4',
@@ -154,65 +280,278 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
         priority: 'medium',
         createdAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
         updatedAt: new Date().toISOString(),
-        comments: [
+        comments: [],
+        metrics: { before: 10.8, current: 11.5, target: 14.0 },
+        watchers: ['山田太郎'],
+        subTasks: [
+          { id: 's1', content: '現行契約の分析', completed: true },
+          { id: 's2', content: '改定案の作成', completed: false },
+          { id: 's3', content: 'パートナーとの交渉', completed: false },
+        ],
+        activities: [
           {
-            id: 'c3',
-            author: '田中美咲',
-            content: 'シンガポールオフィスとのミーティングを設定しました。',
-            createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()
+            id: 'a1',
+            type: 'created',
+            author: '山田太郎',
+            content: 'アクションを作成しました',
+            createdAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
           },
           {
-            id: 'c4',
+            id: 'a2',
+            type: 'comment',
+            author: '田中美咲',
+            content: 'シンガポールオフィスとのミーティングを設定しました。来週火曜日14:00（日本時間）です。',
+            createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+            metadata: { reactions: [{ emoji: '👍', users: ['山田太郎'] }] }
+          },
+          {
+            id: 'a3',
+            type: 'comment',
             author: '高橋健二',
-            content: '契約書のドラフトを準備中です。',
-            createdAt: new Date().toISOString()
-          }
-        ],
-        metrics: { before: 10.8, current: 11.5, target: 14.0 }
+            content: '契約書のドラフトを準備中です。@田中美咲 明日までにレビュー用のファイルを共有します。',
+            createdAt: new Date(now.getTime() - 0.5 * 24 * 60 * 60 * 1000).toISOString(),
+            metadata: { mentions: ['田中美咲'] }
+          },
+        ]
       }
     ];
   }
 
   const handleStatusChange = (actionId: string, newStatus: ActionStatus) => {
-    setActions(prev => prev.map(action =>
-      action.id === actionId
-        ? { ...action, status: newStatus, updatedAt: new Date().toISOString() }
-        : action
-    ));
-    if (selectedAction?.id === actionId) {
-      setSelectedAction(prev => prev ? { ...prev, status: newStatus, updatedAt: new Date().toISOString() } : null);
-    }
-  };
+    const oldAction = actions.find(a => a.id === actionId);
+    if (!oldAction) return;
 
-  const handleAddComment = (actionId: string) => {
-    if (!newComment.trim()) return;
-
-    const comment: ActionComment = {
-      id: `c${Date.now()}`,
-      author: 'デモユーザー',
-      content: newComment,
-      createdAt: new Date().toISOString()
+    const activity: ActivityEvent = {
+      id: `act${Date.now()}`,
+      type: 'status_change',
+      author: CURRENT_USER.name,
+      content: 'ステータスを変更しました',
+      createdAt: new Date().toISOString(),
+      metadata: { from: getStatusLabel(oldAction.status), to: getStatusLabel(newStatus) }
     };
 
     setActions(prev => prev.map(action =>
       action.id === actionId
-        ? { ...action, comments: [...action.comments, comment], updatedAt: new Date().toISOString() }
+        ? { ...action, status: newStatus, updatedAt: new Date().toISOString(), activities: [...action.activities, activity] }
         : action
     ));
-
     if (selectedAction?.id === actionId) {
       setSelectedAction(prev => prev ? {
         ...prev,
-        comments: [...prev.comments, comment],
-        updatedAt: new Date().toISOString()
+        status: newStatus,
+        updatedAt: new Date().toISOString(),
+        activities: [...prev.activities, activity]
       } : null);
     }
+  };
+
+  const handleAddComment = () => {
+    if (!newComment.trim() || !selectedAction) return;
+
+    const mentions = newComment.match(/@(\S+)/g)?.map(m => m.slice(1)) || [];
+
+    const activity: ActivityEvent = {
+      id: `act${Date.now()}`,
+      type: 'comment',
+      author: CURRENT_USER.name,
+      content: newComment,
+      createdAt: new Date().toISOString(),
+      metadata: { mentions, reactions: [] }
+    };
+
+    setActions(prev => prev.map(action =>
+      action.id === selectedAction.id
+        ? { ...action, activities: [...action.activities, activity], updatedAt: new Date().toISOString() }
+        : action
+    ));
+
+    setSelectedAction(prev => prev ? {
+      ...prev,
+      activities: [...prev.activities, activity],
+      updatedAt: new Date().toISOString()
+    } : null);
 
     setNewComment('');
   };
 
+  const handleAddReaction = (activityId: string, emoji: string) => {
+    if (!selectedAction) return;
+
+    setActions(prev => prev.map(action => {
+      if (action.id !== selectedAction.id) return action;
+
+      return {
+        ...action,
+        activities: action.activities.map(act => {
+          if (act.id !== activityId) return act;
+
+          const reactions = act.metadata?.reactions || [];
+          const existingReaction = reactions.find(r => r.emoji === emoji);
+
+          if (existingReaction) {
+            if (existingReaction.users.includes(CURRENT_USER.name)) {
+              return {
+                ...act,
+                metadata: {
+                  ...act.metadata,
+                  reactions: reactions.map(r =>
+                    r.emoji === emoji
+                      ? { ...r, users: r.users.filter(u => u !== CURRENT_USER.name) }
+                      : r
+                  ).filter(r => r.users.length > 0)
+                }
+              };
+            } else {
+              return {
+                ...act,
+                metadata: {
+                  ...act.metadata,
+                  reactions: reactions.map(r =>
+                    r.emoji === emoji
+                      ? { ...r, users: [...r.users, CURRENT_USER.name] }
+                      : r
+                  )
+                }
+              };
+            }
+          } else {
+            return {
+              ...act,
+              metadata: {
+                ...act.metadata,
+                reactions: [...reactions, { emoji, users: [CURRENT_USER.name] }]
+              }
+            };
+          }
+        })
+      };
+    }));
+
+    // Update selected action
+    setSelectedAction(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        activities: prev.activities.map(act => {
+          if (act.id !== activityId) return act;
+
+          const reactions = act.metadata?.reactions || [];
+          const existingReaction = reactions.find(r => r.emoji === emoji);
+
+          if (existingReaction) {
+            if (existingReaction.users.includes(CURRENT_USER.name)) {
+              return {
+                ...act,
+                metadata: {
+                  ...act.metadata,
+                  reactions: reactions.map(r =>
+                    r.emoji === emoji
+                      ? { ...r, users: r.users.filter(u => u !== CURRENT_USER.name) }
+                      : r
+                  ).filter(r => r.users.length > 0)
+                }
+              };
+            } else {
+              return {
+                ...act,
+                metadata: {
+                  ...act.metadata,
+                  reactions: reactions.map(r =>
+                    r.emoji === emoji
+                      ? { ...r, users: [...r.users, CURRENT_USER.name] }
+                      : r
+                  )
+                }
+              };
+            }
+          } else {
+            return {
+              ...act,
+              metadata: {
+                ...act.metadata,
+                reactions: [...reactions, { emoji, users: [CURRENT_USER.name] }]
+              }
+            };
+          }
+        })
+      };
+    });
+  };
+
+  const handleToggleSubTask = (subTaskId: string) => {
+    if (!selectedAction) return;
+
+    setActions(prev => prev.map(action => {
+      if (action.id !== selectedAction.id) return action;
+
+      const updatedSubTasks = action.subTasks.map(st =>
+        st.id === subTaskId ? { ...st, completed: !st.completed } : st
+      );
+
+      const toggledTask = action.subTasks.find(st => st.id === subTaskId);
+      const newActivity: ActivityEvent = {
+        id: `act${Date.now()}`,
+        type: 'subtask',
+        author: CURRENT_USER.name,
+        content: `サブタスク「${toggledTask?.content}」を${toggledTask?.completed ? '未完了に戻し' : '完了し'}ました`,
+        createdAt: new Date().toISOString(),
+      };
+
+      return {
+        ...action,
+        subTasks: updatedSubTasks,
+        activities: [...action.activities, newActivity],
+        updatedAt: new Date().toISOString()
+      };
+    }));
+
+    setSelectedAction(prev => {
+      if (!prev) return null;
+      const updatedSubTasks = prev.subTasks.map(st =>
+        st.id === subTaskId ? { ...st, completed: !st.completed } : st
+      );
+      const toggledTask = prev.subTasks.find(st => st.id === subTaskId);
+      const newActivity: ActivityEvent = {
+        id: `act${Date.now()}`,
+        type: 'subtask',
+        author: CURRENT_USER.name,
+        content: `サブタスク「${toggledTask?.content}」を${toggledTask?.completed ? '未完了に戻し' : '完了し'}ました`,
+        createdAt: new Date().toISOString(),
+      };
+      return {
+        ...prev,
+        subTasks: updatedSubTasks,
+        activities: [...prev.activities, newActivity],
+        updatedAt: new Date().toISOString()
+      };
+    });
+  };
+
+  const handleAddSubTask = () => {
+    if (!newSubTask.trim() || !selectedAction) return;
+
+    const subTask: SubTask = {
+      id: `st${Date.now()}`,
+      content: newSubTask,
+      completed: false
+    };
+
+    setActions(prev => prev.map(action =>
+      action.id === selectedAction.id
+        ? { ...action, subTasks: [...action.subTasks, subTask] }
+        : action
+    ));
+
+    setSelectedAction(prev => prev ? {
+      ...prev,
+      subTasks: [...prev.subTasks, subTask]
+    } : null);
+
+    setNewSubTask('');
+  };
+
   const handleCreateAction = (issue: IssueTarget) => {
-    const newAction: ActionItem = {
+    const newAction: EnhancedActionItem = {
       id: `a${Date.now()}`,
       category: issue.category,
       targetName: issue.name,
@@ -225,11 +564,89 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       comments: [],
-      metrics: { before: issue.currentValue, current: issue.currentValue, target: issue.targetValue }
+      metrics: { before: issue.currentValue, current: issue.currentValue, target: issue.targetValue },
+      watchers: [],
+      subTasks: [],
+      activities: [{
+        id: `act${Date.now()}`,
+        type: 'created',
+        author: CURRENT_USER.name,
+        content: 'アクションを作成しました',
+        createdAt: new Date().toISOString(),
+      }]
     };
     setActions(prev => [...prev, newAction]);
     setSelectedAction(newAction);
+    setIsEditing(true);
+    setEditForm({ action: '', assignee: '', dueDate: newAction.dueDate });
   };
+
+  const handleSaveEdit = () => {
+    if (!selectedAction) return;
+
+    const changes: string[] = [];
+    if (editForm.action !== selectedAction.action) changes.push('アクション内容');
+    if (editForm.assignee !== selectedAction.assignee) changes.push('担当者');
+    if (editForm.dueDate !== selectedAction.dueDate) changes.push('期限');
+
+    const activities = [...selectedAction.activities];
+
+    if (editForm.assignee !== selectedAction.assignee) {
+      activities.push({
+        id: `act${Date.now()}`,
+        type: 'assignee_change',
+        author: CURRENT_USER.name,
+        content: '担当者を変更しました',
+        createdAt: new Date().toISOString(),
+        metadata: { from: selectedAction.assignee || '未定', to: editForm.assignee || '未定' }
+      });
+    }
+
+    setActions(prev => prev.map(action =>
+      action.id === selectedAction.id
+        ? {
+            ...action,
+            action: editForm.action,
+            assignee: editForm.assignee,
+            dueDate: editForm.dueDate,
+            updatedAt: new Date().toISOString(),
+            activities
+          }
+        : action
+    ));
+
+    setSelectedAction(prev => prev ? {
+      ...prev,
+      action: editForm.action,
+      assignee: editForm.assignee,
+      dueDate: editForm.dueDate,
+      updatedAt: new Date().toISOString(),
+      activities
+    } : null);
+
+    setIsEditing(false);
+  };
+
+  const handleMentionSelect = (userName: string) => {
+    setNewComment(prev => prev.replace(/@\S*$/, `@${userName} `));
+    setShowMentionList(false);
+    commentInputRef.current?.focus();
+  };
+
+  const handleCommentChange = (value: string) => {
+    setNewComment(value);
+    const lastAtMatch = value.match(/@(\S*)$/);
+    if (lastAtMatch) {
+      setMentionSearch(lastAtMatch[1]);
+      setShowMentionList(true);
+    } else {
+      setShowMentionList(false);
+    }
+  };
+
+  const filteredUsers = DEMO_USERS.filter(user =>
+    user.name.toLowerCase().includes(mentionSearch.toLowerCase())
+  );
 
   const getStatusColor = (status: ActionStatus) => {
     switch (status) {
@@ -273,6 +690,14 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
     }
   };
 
+  const getCategoryColor = (category: ActionCategory) => {
+    switch (category) {
+      case 'branch': return 'bg-purple-100 text-purple-700';
+      case 'segment': return 'bg-blue-100 text-blue-700';
+      case 'project': return 'bg-green-100 text-green-700';
+    }
+  };
+
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
@@ -283,92 +708,150 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
     return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
+  const formatRelativeTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'たった今';
+    if (minutes < 60) return `${minutes}分前`;
+    if (hours < 24) return `${hours}時間前`;
+    if (days < 7) return `${days}日前`;
+    return formatDate(dateStr);
+  };
+
+  const getActivityIcon = (type: ActivityEvent['type']) => {
+    switch (type) {
+      case 'comment':
+        return (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+        );
+      case 'status_change':
+        return (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        );
+      case 'created':
+        return (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+        );
+      case 'assignee_change':
+        return (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+        );
+      case 'subtask':
+        return (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+        );
+    }
+  };
+
+  const renderHighlightedContent = (content: string) => {
+    const parts = content.split(/(@\S+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        return (
+          <span key={i} className="text-indigo-600 font-medium bg-indigo-50 px-1 rounded">
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header with Stats */}
-      <div className="grid grid-cols-5 gap-4">
-        <div className="bg-white rounded-lg p-4 shadow-sm border">
+      <div className="grid grid-cols-6 gap-3">
+        <div className="bg-white rounded-lg p-3 shadow-sm border">
           <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
-          <div className="text-sm text-gray-500">全アクション</div>
+          <div className="text-xs text-gray-500">全アクション</div>
         </div>
-        <div className="bg-white rounded-lg p-4 shadow-sm border">
+        <div className="bg-white rounded-lg p-3 shadow-sm border">
           <div className="text-2xl font-bold text-gray-500">{stats.pending}</div>
-          <div className="text-sm text-gray-500">未着手</div>
+          <div className="text-xs text-gray-500">未着手</div>
         </div>
-        <div className="bg-white rounded-lg p-4 shadow-sm border">
+        <div className="bg-white rounded-lg p-3 shadow-sm border">
           <div className="text-2xl font-bold text-blue-600">{stats.inProgress}</div>
-          <div className="text-sm text-gray-500">進行中</div>
+          <div className="text-xs text-gray-500">進行中</div>
         </div>
-        <div className="bg-white rounded-lg p-4 shadow-sm border">
+        <div className="bg-white rounded-lg p-3 shadow-sm border">
           <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
-          <div className="text-sm text-gray-500">完了</div>
+          <div className="text-xs text-gray-500">完了</div>
         </div>
-        <div className="bg-white rounded-lg p-4 shadow-sm border">
+        <div className="bg-white rounded-lg p-3 shadow-sm border border-red-200 bg-red-50">
           <div className="text-2xl font-bold text-red-600">{stats.overdue}</div>
-          <div className="text-sm text-gray-500">期限超過</div>
+          <div className="text-xs text-red-600">期限超過</div>
+        </div>
+        <div className="bg-white rounded-lg p-3 shadow-sm border border-amber-200 bg-amber-50">
+          <div className="text-2xl font-bold text-amber-600">{stats.thisWeekDue}</div>
+          <div className="text-xs text-amber-600">今週期限</div>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        {/* Issues Detection Panel */}
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="p-4 border-b">
-            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+      <div className="grid grid-cols-12 gap-4">
+        {/* Left: Issues Detection */}
+        <div className="col-span-3 bg-white rounded-lg shadow-sm border">
+          <div className="p-3 border-b">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-sm">
               <span className="text-red-500">⚠</span>
               検出された課題
             </h3>
-            <p className="text-sm text-gray-500 mt-1">業績データから自動検出</p>
           </div>
-          <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
+          <div className="p-2 space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto">
             {detectedIssues.length === 0 ? (
-              <p className="text-gray-500 text-sm">現在、検出された課題はありません</p>
+              <p className="text-gray-500 text-sm p-2">課題なし</p>
             ) : (
-              detectedIssues.map((issue, idx) => (
-                <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                          issue.category === 'branch' ? 'bg-purple-100 text-purple-700' :
-                          issue.category === 'segment' ? 'bg-blue-100 text-blue-700' :
-                          'bg-green-100 text-green-700'
-                        }`}>
-                          {getCategoryLabel(issue.category)}
-                        </span>
-                        <span className={`text-xs font-bold ${getPriorityColor(issue.priority)}`}>
-                          {getPriorityLabel(issue.priority)}
-                        </span>
-                      </div>
-                      <div className="font-medium text-gray-900 mt-1 truncate">{issue.name}</div>
-                      <div className="text-sm text-gray-600 mt-0.5">{issue.issue}</div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        現在: {issue.currentValue.toFixed(1)}% → 目標: {issue.targetValue.toFixed(1)}%
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleCreateAction(issue)}
-                      className="shrink-0 px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
-                    >
-                      アクション作成
-                    </button>
+              detectedIssues.slice(0, 8).map((issue, idx) => (
+                <div key={idx} className="p-2 bg-gray-50 rounded border border-gray-200 text-sm">
+                  <div className="flex items-center gap-1 mb-1">
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${getCategoryColor(issue.category)}`}>
+                      {getCategoryLabel(issue.category)}
+                    </span>
+                    <span className={`text-xs font-bold ${getPriorityColor(issue.priority)}`}>
+                      {getPriorityLabel(issue.priority)}
+                    </span>
                   </div>
+                  <div className="font-medium text-gray-900 truncate">{issue.name}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {issue.currentValue.toFixed(1)}% → {issue.targetValue.toFixed(1)}%
+                  </div>
+                  <button
+                    onClick={() => handleCreateAction(issue)}
+                    className="mt-2 w-full px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                  >
+                    アクション作成
+                  </button>
                 </div>
               ))
             )}
           </div>
         </div>
 
-        {/* Action List */}
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="p-4 border-b">
-            <h3 className="font-semibold text-gray-900">アクション一覧</h3>
-            <div className="flex gap-2 mt-3">
+        {/* Middle: Action List */}
+        <div className="col-span-3 bg-white rounded-lg shadow-sm border">
+          <div className="p-3 border-b">
+            <h3 className="font-semibold text-gray-900 text-sm">アクション一覧</h3>
+            <div className="flex gap-1 mt-2">
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value as ActionStatus | 'all')}
-                className="text-sm border rounded px-2 py-1"
+                className="text-xs border rounded px-1.5 py-1 flex-1"
               >
-                <option value="all">全ステータス</option>
+                <option value="all">全て</option>
                 <option value="pending">未着手</option>
                 <option value="in_progress">進行中</option>
                 <option value="completed">完了</option>
@@ -377,7 +860,7 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value as ActionCategory | 'all')}
-                className="text-sm border rounded px-2 py-1"
+                className="text-xs border rounded px-1.5 py-1 flex-1"
               >
                 <option value="all">全カテゴリ</option>
                 <option value="project">プロジェクト</option>
@@ -386,129 +869,202 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
               </select>
             </div>
           </div>
-          <div className="divide-y max-h-96 overflow-y-auto">
-            {filteredActions.length === 0 ? (
-              <p className="p-4 text-gray-500 text-sm">該当するアクションがありません</p>
-            ) : (
-              filteredActions.map(action => (
-                <div
-                  key={action.id}
-                  onClick={() => setSelectedAction(action)}
-                  className={`p-4 cursor-pointer hover:bg-gray-50 ${
-                    selectedAction?.id === action.id ? 'bg-indigo-50 border-l-4 border-indigo-600' : ''
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs px-2 py-0.5 rounded font-medium ${getStatusColor(action.status)}`}>
-                          {getStatusLabel(action.status)}
-                        </span>
-                        <span className={`text-xs font-bold ${getPriorityColor(action.priority)}`}>
-                          {getPriorityLabel(action.priority)}
-                        </span>
-                      </div>
-                      <div className="font-medium text-gray-900 mt-1 truncate">{action.targetName}</div>
-                      <div className="text-sm text-gray-600 truncate">{action.issue}</div>
-                      <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-                        <span>担当: {action.assignee || '未定'}</span>
-                        <span>期限: {formatDate(action.dueDate)}</span>
-                      </div>
-                    </div>
-                    {action.comments.length > 0 && (
-                      <span className="shrink-0 bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded">
-                        {action.comments.length}件
+          <div className="divide-y max-h-[calc(100vh-380px)] overflow-y-auto">
+            {filteredActions.map(action => (
+              <div
+                key={action.id}
+                onClick={() => {
+                  setSelectedAction(action);
+                  setIsEditing(false);
+                  setEditForm({ action: action.action, assignee: action.assignee, dueDate: action.dueDate });
+                }}
+                className={`p-3 cursor-pointer hover:bg-gray-50 ${
+                  selectedAction?.id === action.id ? 'bg-indigo-50 border-l-4 border-indigo-600' : ''
+                }`}
+              >
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${getStatusColor(action.status)}`}>
+                    {getStatusLabel(action.status)}
+                  </span>
+                  <span className={`text-xs font-bold ${getPriorityColor(action.priority)}`}>
+                    {getPriorityLabel(action.priority)}
+                  </span>
+                </div>
+                <div className="font-medium text-gray-900 text-sm truncate">{action.targetName}</div>
+                <div className="text-xs text-gray-600 truncate">{action.issue}</div>
+                <div className="flex items-center justify-between mt-2">
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span>{action.assignee || '未定'}</span>
+                    <span>{formatDate(action.dueDate)}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {action.activities.filter(a => a.type === 'comment').length > 0 && (
+                      <span className="flex items-center gap-0.5 text-xs text-gray-400">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        {action.activities.filter(a => a.type === 'comment').length}
+                      </span>
+                    )}
+                    {action.subTasks.length > 0 && (
+                      <span className="text-xs text-gray-400">
+                        {action.subTasks.filter(s => s.completed).length}/{action.subTasks.length}
                       </span>
                     )}
                   </div>
                 </div>
-              ))
-            )}
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Action Detail Panel */}
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="p-4 border-b">
-            <h3 className="font-semibold text-gray-900">アクション詳細</h3>
-          </div>
+        {/* Right: Action Detail with Thread */}
+        <div className="col-span-6 bg-white rounded-lg shadow-sm border flex flex-col max-h-[calc(100vh-280px)]">
           {selectedAction ? (
-            <div className="p-4 space-y-4">
+            <>
               {/* Header */}
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-                    selectedAction.category === 'branch' ? 'bg-purple-100 text-purple-700' :
-                    selectedAction.category === 'segment' ? 'bg-blue-100 text-blue-700' :
-                    'bg-green-100 text-green-700'
-                  }`}>
-                    {getCategoryLabel(selectedAction.category)}
-                  </span>
-                  <span className={`text-xs font-bold ${getPriorityColor(selectedAction.priority)}`}>
-                    優先度: {getPriorityLabel(selectedAction.priority)}
-                  </span>
+              <div className="p-4 border-b flex-shrink-0">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${getCategoryColor(selectedAction.category)}`}>
+                        {getCategoryLabel(selectedAction.category)}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${getStatusColor(selectedAction.status)}`}>
+                        {getStatusLabel(selectedAction.status)}
+                      </span>
+                      <span className={`text-xs font-bold ${getPriorityColor(selectedAction.priority)}`}>
+                        優先度: {getPriorityLabel(selectedAction.priority)}
+                      </span>
+                    </div>
+                    <h4 className="font-bold text-lg text-gray-900">{selectedAction.targetName}</h4>
+                    <p className="text-gray-600 text-sm mt-1">{selectedAction.issue}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsEditing(!isEditing);
+                      setEditForm({
+                        action: selectedAction.action,
+                        assignee: selectedAction.assignee,
+                        dueDate: selectedAction.dueDate
+                      });
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
                 </div>
-                <h4 className="font-bold text-lg text-gray-900">{selectedAction.targetName}</h4>
-                <p className="text-gray-600 mt-1">{selectedAction.issue}</p>
-              </div>
 
-              {/* Metrics */}
-              {selectedAction.metrics && (
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <div className="text-sm font-medium text-gray-700 mb-2">改善状況</div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-500">{selectedAction.metrics.before.toFixed(1)}%</span>
-                    <span className="text-gray-400">→</span>
-                    <span className={`font-bold ${
-                      selectedAction.metrics.current > selectedAction.metrics.before
-                        ? 'text-green-600' : 'text-gray-900'
-                    }`}>
-                      {selectedAction.metrics.current.toFixed(1)}%
-                    </span>
-                    <span className="text-gray-400">→</span>
-                    <span className="text-indigo-600">目標 {selectedAction.metrics.target.toFixed(1)}%</span>
+                {/* Edit Form or Details */}
+                {isEditing ? (
+                  <div className="mt-4 space-y-3 p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">対応アクション</label>
+                      <textarea
+                        value={editForm.action}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, action: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        rows={2}
+                        placeholder="具体的なアクションを入力..."
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-gray-500 block mb-1">担当者</label>
+                        <select
+                          value={editForm.assignee}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, assignee: e.target.value }))}
+                          className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                          <option value="">未定</option>
+                          {DEMO_USERS.map(user => (
+                            <option key={user.id} value={user.name}>{user.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 block mb-1">期限</label>
+                        <input
+                          type="date"
+                          value={editForm.dueDate}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, dueDate: e.target.value }))}
+                          className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSaveEdit}
+                        className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                      >
+                        保存
+                      </button>
+                      <button
+                        onClick={() => setIsEditing(false)}
+                        className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                      >
+                        キャンセル
+                      </button>
+                    </div>
                   </div>
-                  <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-indigo-600 rounded-full"
-                      style={{
-                        width: `${Math.min(100, Math.max(0,
-                          ((selectedAction.metrics.current - selectedAction.metrics.before) /
-                           (selectedAction.metrics.target - selectedAction.metrics.before)) * 100
-                        ))}%`
-                      }}
-                    />
+                ) : (
+                  <div className="mt-3 grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <span className="text-xs text-gray-500">対応アクション</span>
+                      <p className="text-gray-900">{selectedAction.action || '（未設定）'}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-500">担当者</span>
+                      <p className="text-gray-900">{selectedAction.assignee || '（未定）'}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-500">期限</span>
+                      <p className="text-gray-900">{formatDate(selectedAction.dueDate)}</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Action Details */}
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs text-gray-500">対応アクション</label>
-                  <p className="text-gray-900">{selectedAction.action || '（未設定）'}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-gray-500">担当者</label>
-                    <p className="text-gray-900">{selectedAction.assignee || '（未定）'}</p>
+                {/* Metrics */}
+                {selectedAction.metrics && !isEditing && (
+                  <div className="mt-3 bg-gray-50 rounded-lg p-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">改善状況</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500">{selectedAction.metrics.before.toFixed(1)}%</span>
+                        <span className="text-gray-300">→</span>
+                        <span className={`font-bold ${
+                          selectedAction.metrics.current > selectedAction.metrics.before ? 'text-green-600' : 'text-gray-900'
+                        }`}>
+                          {selectedAction.metrics.current.toFixed(1)}%
+                        </span>
+                        <span className="text-gray-300">→</span>
+                        <span className="text-indigo-600 font-medium">{selectedAction.metrics.target.toFixed(1)}%</span>
+                      </div>
+                    </div>
+                    <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(100, Math.max(0,
+                            ((selectedAction.metrics.current - selectedAction.metrics.before) /
+                             (selectedAction.metrics.target - selectedAction.metrics.before)) * 100
+                          ))}%`
+                        }}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs text-gray-500">期限</label>
-                    <p className="text-gray-900">{formatDate(selectedAction.dueDate)}</p>
-                  </div>
-                </div>
-              </div>
+                )}
 
-              {/* Status Change */}
-              <div>
-                <label className="text-xs text-gray-500 block mb-2">ステータス変更</label>
-                <div className="flex gap-2">
+                {/* Status Change */}
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="text-xs text-gray-500">ステータス:</span>
                   {(['pending', 'in_progress', 'completed'] as ActionStatus[]).map(status => (
                     <button
                       key={status}
                       onClick={() => handleStatusChange(selectedAction.id, status)}
-                      className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                      className={`px-3 py-1 text-xs rounded transition-colors ${
                         selectedAction.status === status
                           ? 'bg-indigo-600 text-white'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -518,50 +1074,235 @@ export default function ActionTracker({ data }: ActionTrackerProps) {
                     </button>
                   ))}
                 </div>
+
+                {/* Sub Tasks */}
+                {(selectedAction.subTasks.length > 0 || !isEditing) && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-gray-500">
+                        サブタスク ({selectedAction.subTasks.filter(s => s.completed).length}/{selectedAction.subTasks.length})
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {selectedAction.subTasks.map(task => (
+                        <div
+                          key={task.id}
+                          onClick={() => handleToggleSubTask(task.id)}
+                          className="flex items-center gap-2 p-2 bg-gray-50 rounded cursor-pointer hover:bg-gray-100"
+                        >
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                            task.completed ? 'bg-green-500 border-green-500' : 'border-gray-300'
+                          }`}>
+                            {task.completed && (
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          <span className={`text-sm flex-1 ${task.completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                            {task.content}
+                          </span>
+                          {task.assignee && (
+                            <span className="text-xs text-gray-400">{task.assignee}</span>
+                          )}
+                        </div>
+                      ))}
+                      <div className="flex gap-2 mt-2">
+                        <input
+                          type="text"
+                          value={newSubTask}
+                          onChange={(e) => setNewSubTask(e.target.value)}
+                          placeholder="サブタスクを追加..."
+                          className="flex-1 px-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          onKeyDown={(e) => e.key === 'Enter' && handleAddSubTask()}
+                        />
+                        <button
+                          onClick={handleAddSubTask}
+                          className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                        >
+                          追加
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Comments */}
-              <div>
-                <label className="text-xs text-gray-500 block mb-2">
-                  コメント ({selectedAction.comments.length}件)
-                </label>
-                <div className="space-y-2 max-h-32 overflow-y-auto mb-3">
-                  {selectedAction.comments.map(comment => (
-                    <div key={comment.id} className="bg-gray-50 rounded p-2">
-                      <div className="flex items-center justify-between text-xs text-gray-500">
-                        <span className="font-medium">{comment.author}</span>
-                        <span>{formatDateTime(comment.createdAt)}</span>
-                      </div>
-                      <p className="text-sm text-gray-700 mt-1">{comment.content}</p>
+              {/* Activity Timeline / Thread */}
+              <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="text-sm font-medium text-gray-700">アクティビティ</h5>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setViewMode('list')}
+                      className={`p-1 rounded ${viewMode === 'list' ? 'bg-white shadow-sm' : 'text-gray-400'}`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => setViewMode('timeline')}
+                      className={`p-1 rounded ${viewMode === 'timeline' ? 'bg-white shadow-sm' : 'text-gray-400'}`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {selectedAction.activities.map((activity, idx) => (
+                    <div
+                      key={activity.id}
+                      className={`${viewMode === 'timeline' ? 'relative pl-6' : ''}`}
+                    >
+                      {viewMode === 'timeline' && (
+                        <>
+                          <div className="absolute left-0 top-1 w-4 h-4 rounded-full bg-white border-2 border-indigo-400 flex items-center justify-center">
+                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                          </div>
+                          {idx < selectedAction.activities.length - 1 && (
+                            <div className="absolute left-[7px] top-5 bottom-0 w-0.5 bg-gray-200" style={{ height: 'calc(100% + 12px)' }} />
+                          )}
+                        </>
+                      )}
+
+                      {activity.type === 'comment' ? (
+                        <div className="bg-white rounded-lg p-3 shadow-sm border">
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-bold flex-shrink-0">
+                              {DEMO_USERS.find(u => u.name === activity.author)?.avatar || activity.author.slice(0, 2)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-gray-900 text-sm">{activity.author}</span>
+                                <span className="text-xs text-gray-400">{formatRelativeTime(activity.createdAt)}</span>
+                              </div>
+                              <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">
+                                {renderHighlightedContent(activity.content)}
+                              </p>
+
+                              {/* Reactions */}
+                              <div className="flex items-center gap-2 mt-2">
+                                {activity.metadata?.reactions?.map((reaction, i) => (
+                                  <button
+                                    key={i}
+                                    onClick={() => handleAddReaction(activity.id, reaction.emoji)}
+                                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${
+                                      reaction.users.includes(CURRENT_USER.name)
+                                        ? 'bg-indigo-100 text-indigo-700'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
+                                  >
+                                    <span>{reaction.emoji}</span>
+                                    <span>{reaction.users.length}</span>
+                                  </button>
+                                ))}
+                                <div className="relative group">
+                                  <button className="p-1 rounded hover:bg-gray-100 text-gray-400">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  </button>
+                                  <div className="absolute bottom-full left-0 mb-1 hidden group-hover:flex bg-white rounded-lg shadow-lg border p-1 gap-1">
+                                    {['👍', '👀', '🙏', '✅', '❤️'].map(emoji => (
+                                      <button
+                                        key={emoji}
+                                        onClick={() => handleAddReaction(activity.id, emoji)}
+                                        className="p-1 hover:bg-gray-100 rounded"
+                                      >
+                                        {emoji}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-sm text-gray-500 py-1">
+                          <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                            {getActivityIcon(activity.type)}
+                          </div>
+                          <span className="font-medium text-gray-700">{activity.author}</span>
+                          <span>{activity.content}</span>
+                          {activity.metadata?.from && activity.metadata?.to && (
+                            <span className="text-gray-400">
+                              ({activity.metadata.from} → {activity.metadata.to})
+                            </span>
+                          )}
+                          <span className="text-xs text-gray-400">{formatRelativeTime(activity.createdAt)}</span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
+              </div>
+
+              {/* Comment Input */}
+              <div className="p-4 border-t bg-white flex-shrink-0">
+                <div className="relative">
+                  <textarea
+                    ref={commentInputRef}
                     value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="コメントを追加..."
-                    className="flex-1 px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddComment(selectedAction.id)}
+                    onChange={(e) => handleCommentChange(e.target.value)}
+                    placeholder="コメントを入力... (@でメンション)"
+                    className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                    rows={2}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleAddComment();
+                      }
+                    }}
                   />
+
+                  {/* Mention Dropdown */}
+                  {showMentionList && filteredUsers.length > 0 && (
+                    <div className="absolute bottom-full left-0 mb-1 w-64 bg-white rounded-lg shadow-lg border max-h-48 overflow-y-auto">
+                      {filteredUsers.map(user => (
+                        <button
+                          key={user.id}
+                          onClick={() => handleMentionSelect(user.name)}
+                          className="w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center gap-2"
+                        >
+                          <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-bold">
+                            {user.avatar}
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                            <div className="text-xs text-gray-500">{user.role}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <div className="text-xs text-gray-400">
+                    Shift+Enter で改行 / Enter で送信
+                  </div>
                   <button
-                    onClick={() => handleAddComment(selectedAction.id)}
-                    className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                    onClick={handleAddComment}
+                    disabled={!newComment.trim()}
+                    className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     送信
                   </button>
                 </div>
               </div>
-
-              {/* Timestamps */}
-              <div className="text-xs text-gray-400 pt-2 border-t">
-                作成: {formatDateTime(selectedAction.createdAt)} / 更新: {formatDateTime(selectedAction.updatedAt)}
-              </div>
-            </div>
+            </>
           ) : (
-            <div className="p-8 text-center text-gray-500">
-              <p>アクションを選択してください</p>
+            <div className="flex-1 flex items-center justify-center text-gray-500">
+              <div className="text-center">
+                <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <p>アクションを選択してください</p>
+              </div>
             </div>
           )}
         </div>
