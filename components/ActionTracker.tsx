@@ -8,7 +8,10 @@ import {
   ActionPriority,
   ActionCategory,
   IssueTarget,
-  ActionComment
+  ActionComment,
+  ThreadComment,
+  User as UserType,
+  UserRole,
 } from '@/lib/types';
 
 interface ActionTrackerProps {
@@ -42,12 +45,12 @@ interface EnhancedActionItem extends ActionItem {
   watchers: string[];
 }
 
-const DEMO_USERS = [
-  { id: '1', name: '山田太郎', avatar: 'YT', role: '部長' },
-  { id: '2', name: '佐藤花子', avatar: 'SH', role: 'マネージャー' },
-  { id: '3', name: '鈴木一郎', avatar: 'SI', role: 'リーダー' },
-  { id: '4', name: '田中美咲', avatar: 'TM', role: '担当' },
-  { id: '5', name: '高橋健二', avatar: 'TK', role: '担当' },
+const DEMO_USERS: Array<{ id: string; name: string; avatar: string; role: string; userRole: UserRole; avatarColor: string }> = [
+  { id: '1', name: '山田太郎', avatar: 'YT', role: '部長', userRole: '経営層', avatarColor: 'bg-blue-500' },
+  { id: '2', name: '佐藤花子', avatar: 'SH', role: 'マネージャー', userRole: 'プロジェクトマネージャー', avatarColor: 'bg-green-500' },
+  { id: '3', name: '鈴木一郎', avatar: 'SI', role: 'リーダー', userRole: 'プロジェクトマネージャー', avatarColor: 'bg-purple-500' },
+  { id: '4', name: '田中美咲', avatar: 'TM', role: '担当', userRole: '現場担当', avatarColor: 'bg-amber-500' },
+  { id: '5', name: '高橋健二', avatar: 'TK', role: '担当', userRole: '管理部門', avatarColor: 'bg-red-500' },
 ];
 
 const CURRENT_USER = DEMO_USERS[0];

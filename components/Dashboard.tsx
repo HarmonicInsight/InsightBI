@@ -11,6 +11,7 @@ import ProfitImprovement from '@/components/ProfitImprovement';
 import SalesSimulation from '@/components/SalesSimulation';
 import ActionTracker from '@/components/ActionTracker';
 import ActionSummaryWidget from '@/components/ActionSummaryWidget';
+import NotificationSystem from '@/components/NotificationSystem';
 import { PerformanceData } from '@/lib/types';
 import { DashboardData } from '@/lib/processData';
 
@@ -138,23 +139,33 @@ export default function Dashboard({ data, diData }: DashboardProps) {
                 </p>
               </div>
             </div>
-            {/* Tab Navigation */}
-            <nav className="flex gap-1 bg-slate-100 p-1 rounded-xl">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all duration-200 ${
-                    activeTab === tab.id
-                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                  }`}
-                >
-                  <span className="w-4 h-4">{tab.icon}</span>
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </button>
-              ))}
-            </nav>
+            <div className="flex items-center gap-4">
+              {/* Tab Navigation */}
+              <nav className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all duration-200 ${
+                      activeTab === tab.id
+                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    }`}
+                  >
+                    <span className="w-4 h-4">{tab.icon}</span>
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </button>
+                ))}
+              </nav>
+
+              {/* Notification Bell */}
+              <NotificationSystem
+                onNavigateToAction={(actionId) => {
+                  setActiveTab('action');
+                  // In a real app, you would also scroll to / highlight the specific action
+                }}
+              />
+            </div>
           </div>
         </div>
       </header>

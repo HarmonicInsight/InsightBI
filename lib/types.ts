@@ -140,6 +140,76 @@ export interface ActionComment {
   createdAt: string;
 }
 
+// Enhanced Thread-based Comment System
+export type UserRole = '経営層' | '現場担当' | '管理部門' | 'プロジェクトマネージャー';
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  department: string;
+  avatarColor?: string;
+}
+
+export interface ThreadComment {
+  id: string;
+  actionId: string;
+  parentId: string | null;
+  authorId: string;
+  authorName: string;
+  authorRole: UserRole;
+  authorAvatarColor?: string;
+  content: string;
+  mentions: string[]; // User IDs mentioned
+  reactions: CommentReaction[];
+  createdAt: string;
+  updatedAt: string;
+  isEdited: boolean;
+  replies?: ThreadComment[];
+}
+
+export interface CommentReaction {
+  emoji: string;
+  userIds: string[];
+}
+
+// Notification System
+export type NotificationType =
+  | 'mention'           // @メンション通知
+  | 'reply'             // 返信通知
+  | 'status_change'     // ステータス変更通知
+  | 'assignment'        // 担当割り当て通知
+  | 'due_reminder'      // 期限リマインダー
+  | 'comment'           // 新規コメント通知
+  | 'reaction';         // リアクション通知
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  actionId?: string;
+  actionTitle?: string;
+  commentId?: string;
+  fromUserId?: string;
+  fromUserName?: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface NotificationPreferences {
+  userId: string;
+  mention: boolean;
+  reply: boolean;
+  statusChange: boolean;
+  assignment: boolean;
+  dueReminder: boolean;
+  comment: boolean;
+  reaction: boolean;
+}
+
 export interface IssueTarget {
   category: ActionCategory;
   name: string;
