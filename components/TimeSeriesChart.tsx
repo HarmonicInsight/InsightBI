@@ -310,10 +310,7 @@ export default function TimeSeriesChart({ data: propData }: TimeSeriesChartProps
                   border: '1px solid #e2e8f0',
                   borderRadius: '8px',
                 }}
-                formatter={(value: number, name: string, props: { payload: { note: string } }) => [
-                  `${value.toFixed(1)}億`,
-                  props.payload.note
-                ]}
+                formatter={(value: number) => `${value.toFixed(1)}億`}
               />
               <ReferenceLine
                 y={200}
