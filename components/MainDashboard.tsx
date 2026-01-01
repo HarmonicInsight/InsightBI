@@ -1,11 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import Dashboard from '@/components/Dashboard';
 import DIDashboard from '@/components/DIDashboard';
 import ActionTracker from '@/components/ActionTracker';
+import SettingsModal from '@/components/SettingsModal';
 import { PerformanceData } from '@/lib/types';
 import { DashboardData } from '@/lib/processData';
+import { useSessionTimeout } from '@/lib/useSessionTimeout';
+import { addAuditLog } from '@/lib/exportUtils';
 
 interface MainDashboardProps {
   performanceData: PerformanceData;
@@ -53,6 +57,28 @@ export default function MainDashboard({ performanceData, diData }: MainDashboard
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
+
+  // Session timeout handler
+  const handleSessionTimeout = useCallback(async () => {
+    addAuditLog('session_timeout', 'セッションがタイムアウトしました');
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {
+      console.error('Logout on timeout failed:', e);
+    }
+    setIsAuthenticated(false);
+    setShowTimeoutWarning(false);
+  }, []);
+
+  // Use session timeout hook (30 minutes default, 5 min warning)
+  useSessionTimeout({
+    timeoutMinutes: 30,
+    onTimeout: handleSessionTimeout,
+    warningMinutes: 5,
+    onWarning: () => setShowTimeoutWarning(true),
+  });
 
   // Check authentication on mount (server-side session)
   const checkSession = useCallback(async () => {
@@ -89,8 +115,10 @@ export default function MainDashboard({ performanceData, diData }: MainDashboard
       if (data.success) {
         setIsAuthenticated(true);
         setError('');
+        addAuditLog('login', `ユーザー "${username}" がログインしました`);
       } else {
         setError(data.error || 'ログインに失敗しました');
+        addAuditLog('login_failed', `ログイン失敗: ${username}`);
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -101,6 +129,7 @@ export default function MainDashboard({ performanceData, diData }: MainDashboard
   };
 
   const handleLogout = async () => {
+    addAuditLog('logout', 'ユーザーがログアウトしました');
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch (err) {
@@ -109,6 +138,7 @@ export default function MainDashboard({ performanceData, diData }: MainDashboard
     setIsAuthenticated(false);
     setUsername('');
     setPassword('');
+    setShowTimeoutWarning(false);
   };
 
   // Loading state
@@ -212,10 +242,32 @@ export default function MainDashboard({ performanceData, diData }: MainDashboard
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-white/70">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-white/70 hidden sm:inline">
                 {performanceData.summary.fiscalYear}
               </span>
+              {/* ヘルプ */}
+              <Link
+                href="/help"
+                className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                title="ヘルプ"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </Link>
+              {/* 設定 */}
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                title="設定"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+              {/* ログアウト */}
               <button
                 onClick={handleLogout}
                 className="text-xs text-white/70 hover:text-white px-2 py-1 rounded hover:bg-white/10 transition-colors"
@@ -226,6 +278,20 @@ export default function MainDashboard({ performanceData, diData }: MainDashboard
           </div>
         </div>
       </div>
+
+      {/* セッションタイムアウト警告 */}
+      {showTimeoutWarning && (
+        <div className="bg-amber-500 text-white px-4 py-2 text-center text-sm">
+          <span className="font-medium">セッションがまもなく期限切れになります。</span>
+          <span className="ml-2">操作を続けるか、再度ログインしてください。</span>
+          <button
+            onClick={() => setShowTimeoutWarning(false)}
+            className="ml-4 px-2 py-0.5 bg-white/20 rounded hover:bg-white/30 transition-colors"
+          >
+            閉じる
+          </button>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 overflow-hidden">
@@ -241,6 +307,12 @@ export default function MainDashboard({ performanceData, diData }: MainDashboard
           </div>
         )}
       </div>
+
+      {/* 設定モーダル */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
     </div>
   );
 }

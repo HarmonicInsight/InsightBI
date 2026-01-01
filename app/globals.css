@@ -84,3 +84,97 @@ table {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1);
 }
+
+/* ============================================
+   印刷用スタイル
+   ============================================ */
+@media print {
+  /* 基本設定 */
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+    line-height: 1.5;
+  }
+
+  /* 印刷時に非表示にする要素 */
+  header,
+  nav,
+  .no-print,
+  button,
+  .recharts-tooltip-wrapper,
+  [role="navigation"] {
+    display: none !important;
+  }
+
+  /* メインコンテンツの調整 */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* カードの影を消す */
+  .shadow-sm,
+  .shadow-lg,
+  .shadow-xl {
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+  }
+
+  /* グラデーションを単色に */
+  .bg-gradient-to-r,
+  .bg-gradient-to-br {
+    background: #4f46e5 !important;
+  }
+
+  /* リンクのスタイル */
+  a {
+    color: black !important;
+    text-decoration: none !important;
+  }
+
+  /* テーブルの改ページ */
+  table {
+    page-break-inside: avoid;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  /* カードの改ページ */
+  .rounded-xl,
+  .rounded-2xl {
+    page-break-inside: avoid;
+  }
+
+  /* ページ番号とヘッダー */
+  @page {
+    margin: 2cm;
+    @top-center {
+      content: "InsightBI 経営ダッシュボード";
+    }
+    @bottom-center {
+      content: counter(page) " / " counter(pages);
+    }
+  }
+
+  /* 最初のページ */
+  @page :first {
+    @top-center {
+      content: "";
+    }
+  }
+}
+
+/* 印刷プレビュー用クラス */
+.print-only {
+  display: none;
+}
+
+@media print {
+  .print-only {
+    display: block !important;
+  }
+}
