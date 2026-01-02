@@ -7,6 +7,7 @@ import DIDashboard from '@/components/DIDashboard';
 import ActionTracker from '@/components/ActionTracker';
 import SettingsModal from '@/components/SettingsModal';
 import DecisionDashboard from '@/components/DecisionDashboard';
+import BusinessTreeDashboard from '@/components/BusinessTreeDashboard';
 import { PerformanceData } from '@/lib/types';
 import { DashboardData } from '@/lib/processData';
 import { useSessionTimeout } from '@/lib/useSessionTimeout';
@@ -18,6 +19,16 @@ interface MainDashboardProps {
 }
 
 const mainTabs = [
+  {
+    id: 'kpi',
+    label: '業務KPI',
+    description: '部門別KPIツリー',
+    icon: (
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-5 h-5">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+      </svg>
+    ),
+  },
   {
     id: 'decision',
     label: '意思決定',
@@ -61,7 +72,7 @@ const mainTabs = [
 ];
 
 export default function MainDashboard({ performanceData, diData }: MainDashboardProps) {
-  const [activeMain, setActiveMain] = useState<'decision' | 'company' | 'di' | 'action'>('decision');
+  const [activeMain, setActiveMain] = useState<'kpi' | 'decision' | 'company' | 'di' | 'action'>('kpi');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [username, setUsername] = useState('');
@@ -241,7 +252,7 @@ export default function MainDashboard({ performanceData, diData }: MainDashboard
               {mainTabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveMain(tab.id as 'decision' | 'company' | 'di' | 'action')}
+                  onClick={() => setActiveMain(tab.id as 'kpi' | 'decision' | 'company' | 'di' | 'action')}
                   className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
                     activeMain === tab.id
                       ? 'bg-white/20 text-white'
@@ -306,6 +317,9 @@ export default function MainDashboard({ performanceData, diData }: MainDashboard
 
       {/* Main Content */}
       <div className="flex-1 overflow-hidden">
+        {activeMain === 'kpi' && (
+          <BusinessTreeDashboard />
+        )}
         {activeMain === 'decision' && (
           <DecisionDashboard />
         )}
