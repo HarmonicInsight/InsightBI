@@ -340,194 +340,203 @@ export default function MonthlyFollowDashboard({ onNavigateToPipeline }: Monthly
             )}
           </div>
 
-          {/* 当月パイプライン */}
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-bold text-slate-800">{selectedMonth}月 受注見込み案件</h2>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-slate-400">{monthlyPipelineItems.length}件</span>
-                <span className="text-sm font-bold text-indigo-600">{monthlyPipelineGross.toFixed(1)}億</span>
-                <span className="text-[10px] text-slate-400">（見込み{monthlyPipelineWeighted.toFixed(1)}億）</span>
-              </div>
-            </div>
-
-            {monthlyPipelineItems.length === 0 ? (
-              <div className="text-center py-4 text-sm text-slate-400">
-                {selectedMonth}月に受注予定の案件はありません
-              </div>
-            ) : (
-              <>
-                {/* ステージ別サマリー */}
-                <div className="grid grid-cols-4 gap-2 mb-3">
-                  {pipelineStages.map(stage => {
-                    const data = monthlyPipelineSummary.find(s => s.stage === stage.id);
-                    return (
-                      <div key={stage.id} className={`p-2 rounded ${stage.bgColor}`}>
-                        <div className="flex items-center justify-between">
-                          <span className={`text-xs font-bold ${stage.color}`}>{stage.id}</span>
-                          <span className={`text-xs ${stage.color}`}>{data?.count || 0}件</span>
-                        </div>
-                        <div className={`text-sm font-bold ${stage.color}`}>{(data?.totalAmount || 0).toFixed(1)}億</div>
-                        <div className="text-[10px] text-slate-500">見込{(data?.weightedAmount || 0).toFixed(1)}億</div>
-                      </div>
-                    );
-                  })}
+          {/* 当月パイプライン - 月次締めが完了した月のみ表示 */}
+          {currentData?.isClosed ? (
+            <div className="bg-white rounded-lg border border-slate-200 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-bold text-slate-800">{selectedMonth}月 受注見込み案件</h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-400">{monthlyPipelineItems.length}件</span>
+                  <span className="text-sm font-bold text-indigo-600">{monthlyPipelineGross.toFixed(1)}億</span>
+                  <span className="text-[10px] text-slate-400">（見込み{monthlyPipelineWeighted.toFixed(1)}億）</span>
                 </div>
+              </div>
 
-                {/* 案件一覧（コンパクト） */}
-                <table className="w-full text-xs">
-                  <thead className="bg-slate-50">
-                    <tr className="text-slate-500">
-                      <th className="py-1.5 px-2 text-left">ステージ</th>
-                      <th className="py-1.5 px-2 text-left">案件名</th>
-                      <th className="py-1.5 px-2 text-right">金額</th>
-                      <th className="py-1.5 px-2 text-left">顧客</th>
-                      <th className="py-1.5 px-2 text-left">担当</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthlyPipelineItems.slice(0, 8).map(item => {
-                      const stage = pipelineStages.find(s => s.id === item.stage)!;
+              {monthlyPipelineItems.length === 0 ? (
+                <div className="text-center py-4 text-sm text-slate-400">
+                  {selectedMonth}月に受注予定の案件はありません
+                </div>
+              ) : (
+                <>
+                  {/* ステージ別サマリー */}
+                  <div className="grid grid-cols-4 gap-2 mb-3">
+                    {pipelineStages.map(stage => {
+                      const data = monthlyPipelineSummary.find(s => s.stage === stage.id);
                       return (
-                        <tr key={item.id} className="border-t border-slate-100 hover:bg-slate-50">
-                          <td className="py-1.5 px-2">
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${stage.bgColor} ${stage.color}`}>{item.stage}</span>
-                          </td>
-                          <td className="py-1.5 px-2 font-medium text-slate-800">{item.name}</td>
-                          <td className="py-1.5 px-2 text-right font-bold">{item.amount.toFixed(1)}億</td>
-                          <td className="py-1.5 px-2 text-slate-500">{item.customer}</td>
-                          <td className="py-1.5 px-2 text-slate-500">{item.owner}</td>
-                        </tr>
+                        <div key={stage.id} className={`p-2 rounded ${stage.bgColor}`}>
+                          <div className="flex items-center justify-between">
+                            <span className={`text-xs font-bold ${stage.color}`}>{stage.id}</span>
+                            <span className={`text-xs ${stage.color}`}>{data?.count || 0}件</span>
+                          </div>
+                          <div className={`text-sm font-bold ${stage.color}`}>{(data?.totalAmount || 0).toFixed(1)}億</div>
+                          <div className="text-[10px] text-slate-500">見込{(data?.weightedAmount || 0).toFixed(1)}億</div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-                {monthlyPipelineItems.length > 8 && (
-                  <div className="text-center text-xs text-slate-400 mt-2">
-                    他 {monthlyPipelineItems.length - 8} 件
                   </div>
-                )}
-              </>
-            )}
-          </div>
 
-          {/* 部署別ブレイクダウン */}
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-slate-800">部署別 パイプライン</h2>
-                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-medium rounded">
-                  {selectedMonth}月受注予定
-                </span>
-              </div>
-              <span className="text-[10px] text-slate-400">クリックで案件一覧へ</span>
-            </div>
-            <div className="space-y-3">
-              {monthlyDepartmentSummaries.map(dept => {
-                // 当月の案件がない部署はスキップ（または薄く表示）
-                const hasMonthlyItems = dept.pipelineTotal > 0;
-                return (
-                  <div
-                    key={dept.department.id}
-                    className={`border rounded-lg p-3 transition-colors cursor-pointer ${
-                      hasMonthlyItems
-                        ? 'border-slate-100 hover:border-indigo-200'
-                        : 'border-slate-50 bg-slate-50 opacity-60'
-                    }`}
-                    onClick={() => onNavigateToPipeline?.({ departmentId: dept.department.id })}
-                  >
-                    {/* 部署ヘッダー */}
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-800">{dept.department.name}</span>
-                        {hasMonthlyItems && dept.pipelineTotal >= 1 && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded font-medium">
-                            {dept.dealCount}件
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        {hasMonthlyItems ? (
-                          <>
-                            <span className="text-lg font-bold text-indigo-600">
-                              {dept.pipelineTotal.toFixed(1)}
-                            </span>
-                            <span className="text-xs text-slate-400 ml-1">億円</span>
-                          </>
-                        ) : (
-                          <span className="text-sm text-slate-400">案件なし</span>
-                        )}
-                      </div>
+                  {/* 案件一覧（コンパクト） */}
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50">
+                      <tr className="text-slate-500">
+                        <th className="py-1.5 px-2 text-left">ステージ</th>
+                        <th className="py-1.5 px-2 text-left">案件名</th>
+                        <th className="py-1.5 px-2 text-right">金額</th>
+                        <th className="py-1.5 px-2 text-left">顧客</th>
+                        <th className="py-1.5 px-2 text-left">担当</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthlyPipelineItems.slice(0, 8).map(item => {
+                        const stage = pipelineStages.find(s => s.id === item.stage)!;
+                        return (
+                          <tr key={item.id} className="border-t border-slate-100 hover:bg-slate-50">
+                            <td className="py-1.5 px-2">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${stage.bgColor} ${stage.color}`}>{item.stage}</span>
+                            </td>
+                            <td className="py-1.5 px-2 font-medium text-slate-800">{item.name}</td>
+                            <td className="py-1.5 px-2 text-right font-bold">{item.amount.toFixed(1)}億</td>
+                            <td className="py-1.5 px-2 text-slate-500">{item.customer}</td>
+                            <td className="py-1.5 px-2 text-slate-500">{item.owner}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {monthlyPipelineItems.length > 8 && (
+                    <div className="text-center text-xs text-slate-400 mt-2">
+                      他 {monthlyPipelineItems.length - 8} 件
                     </div>
-
-                    {hasMonthlyItems && (
-                      <>
-                        {/* 当月パイプラインバー */}
-                        <div className="h-6 bg-slate-100 rounded overflow-hidden flex mb-2">
-                          {dept.stageBreakdown.map(sb => {
-                            const stage = pipelineStages.find(s => s.id === sb.stage)!;
-                            const widthPct = dept.pipelineTotal > 0 ? (sb.amount / dept.pipelineTotal) * 100 : 0;
-                            if (widthPct < 1) return null;
-                            return (
-                              <div
-                                key={sb.stage}
-                                className={`${stage.bgColor} h-full flex items-center justify-center text-[10px] font-medium ${stage.color} cursor-pointer hover:opacity-80`}
-                                style={{ width: `${widthPct}%` }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onNavigateToPipeline?.({ departmentId: dept.department.id, stage: sb.stage });
-                                }}
-                                title={`${stage.name}: ${sb.amount.toFixed(1)}億 (見込${sb.weighted.toFixed(1)}億)`}
-                              >
-                                {widthPct > 8 && sb.stage}
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* 数値サマリー（当月ベース） */}
-                        <div className="grid grid-cols-3 gap-2 text-[11px]">
-                          <div className="text-center">
-                            <div className="text-slate-400">総額</div>
-                            <div className="font-bold text-slate-800">{dept.pipelineTotal.toFixed(1)}億</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-slate-400">見込み</div>
-                            <div className="font-bold text-indigo-600">{dept.pipelineWeighted.toFixed(1)}億</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-slate-400">件数</div>
-                            <div className="font-bold text-slate-600">{dept.dealCount}件</div>
-                          </div>
-                        </div>
-
-                        {/* ステージ別内訳（コンパクト） */}
-                        <div className="mt-2 flex gap-2">
-                          {dept.stageBreakdown.map(sb => {
-                            const stage = pipelineStages.find(s => s.id === sb.stage)!;
-                            if (sb.amount === 0) return null;
-                            return (
-                              <button
-                                key={sb.stage}
-                                className={`flex-1 p-1.5 rounded ${stage.bgColor} hover:opacity-80 transition-opacity`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onNavigateToPipeline?.({ departmentId: dept.department.id, stage: sb.stage });
-                                }}
-                              >
-                                <div className={`text-[10px] font-bold ${stage.color}`}>{stage.id}</div>
-                                <div className={`text-xs font-bold ${stage.color}`}>{sb.amount.toFixed(0)}億</div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
+                  )}
+                </>
+              )}
             </div>
-          </div>
+          ) : (
+            <div className="bg-slate-50 border border-slate-200 border-dashed rounded-lg p-4 text-center">
+              <div className="text-sm text-slate-500">{selectedMonth}月のパイプラインデータ</div>
+              <div className="text-xs text-slate-400 mt-1">月次売上データをインポートするとパイプラインが表示されます</div>
+            </div>
+          )}
+
+          {/* 部署別ブレイクダウン - 月次締めが完了した月のみ表示 */}
+          {currentData?.isClosed && (
+            <div className="bg-white rounded-lg border border-slate-200 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-slate-800">部署別 パイプライン</h2>
+                  <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-medium rounded">
+                    {selectedMonth}月受注予定
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-400">クリックで案件一覧へ</span>
+              </div>
+              <div className="space-y-3">
+                {monthlyDepartmentSummaries.map(dept => {
+                  // 当月の案件がない部署はスキップ（または薄く表示）
+                  const hasMonthlyItems = dept.pipelineTotal > 0;
+                  return (
+                    <div
+                      key={dept.department.id}
+                      className={`border rounded-lg p-3 transition-colors cursor-pointer ${
+                        hasMonthlyItems
+                          ? 'border-slate-100 hover:border-indigo-200'
+                          : 'border-slate-50 bg-slate-50 opacity-60'
+                      }`}
+                      onClick={() => onNavigateToPipeline?.({ departmentId: dept.department.id })}
+                    >
+                      {/* 部署ヘッダー */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-800">{dept.department.name}</span>
+                          {hasMonthlyItems && dept.pipelineTotal >= 1 && (
+                            <span className="text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded font-medium">
+                              {dept.dealCount}件
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          {hasMonthlyItems ? (
+                            <>
+                              <span className="text-lg font-bold text-indigo-600">
+                                {dept.pipelineTotal.toFixed(1)}
+                              </span>
+                              <span className="text-xs text-slate-400 ml-1">億円</span>
+                            </>
+                          ) : (
+                            <span className="text-sm text-slate-400">案件なし</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {hasMonthlyItems && (
+                        <>
+                          {/* 当月パイプラインバー */}
+                          <div className="h-6 bg-slate-100 rounded overflow-hidden flex mb-2">
+                            {dept.stageBreakdown.map(sb => {
+                              const stage = pipelineStages.find(s => s.id === sb.stage)!;
+                              const widthPct = dept.pipelineTotal > 0 ? (sb.amount / dept.pipelineTotal) * 100 : 0;
+                              if (widthPct < 1) return null;
+                              return (
+                                <div
+                                  key={sb.stage}
+                                  className={`${stage.bgColor} h-full flex items-center justify-center text-[10px] font-medium ${stage.color} cursor-pointer hover:opacity-80`}
+                                  style={{ width: `${widthPct}%` }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onNavigateToPipeline?.({ departmentId: dept.department.id, stage: sb.stage });
+                                  }}
+                                  title={`${stage.name}: ${sb.amount.toFixed(1)}億 (見込${sb.weighted.toFixed(1)}億)`}
+                                >
+                                  {widthPct > 8 && sb.stage}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* 数値サマリー（当月ベース） */}
+                          <div className="grid grid-cols-3 gap-2 text-[11px]">
+                            <div className="text-center">
+                              <div className="text-slate-400">総額</div>
+                              <div className="font-bold text-slate-800">{dept.pipelineTotal.toFixed(1)}億</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-slate-400">見込み</div>
+                              <div className="font-bold text-indigo-600">{dept.pipelineWeighted.toFixed(1)}億</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-slate-400">件数</div>
+                              <div className="font-bold text-slate-600">{dept.dealCount}件</div>
+                            </div>
+                          </div>
+
+                          {/* ステージ別内訳（コンパクト） */}
+                          <div className="mt-2 flex gap-2">
+                            {dept.stageBreakdown.map(sb => {
+                              const stage = pipelineStages.find(s => s.id === sb.stage)!;
+                              if (sb.amount === 0) return null;
+                              return (
+                                <button
+                                  key={sb.stage}
+                                  className={`flex-1 p-1.5 rounded ${stage.bgColor} hover:opacity-80 transition-opacity`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onNavigateToPipeline?.({ departmentId: dept.department.id, stage: sb.stage });
+                                  }}
+                                >
+                                  <div className={`text-[10px] font-bold ${stage.color}`}>{stage.id}</div>
+                                  <div className={`text-xs font-bold ${stage.color}`}>{sb.amount.toFixed(0)}億</div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* KPIジャンル別 */}
           <div className="space-y-3">
