@@ -15,9 +15,12 @@ import {
   calculateMonthlyPipelineRevenue,
 } from '@/lib/pipelineData';
 import { monthlyDataset, monthOrder, fyBudget } from '@/lib/monthlyData';
+import PlanComparison from './PlanComparison';
+import ExcelImportDialog from './ExcelImportDialog';
 
 type SortKey = 'amount' | 'stage' | 'expectedCloseMonth' | 'customer' | 'owner';
 type SortOrder = 'asc' | 'desc';
+type ViewMode = 'pipeline' | 'plan';
 
 interface PipelineManagementProps {
   initialFilter?: {
@@ -35,6 +38,9 @@ export default function PipelineManagement({ initialFilter, onClearFilter }: Pip
   const [sortKey, setSortKey] = useState<SortKey>('amount');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<ViewMode>('pipeline');
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importedData, setImportedData] = useState<PipelineItem[]>([]);
 
   // 行展開トグル
   const toggleRow = (id: string) => {
@@ -195,6 +201,11 @@ export default function PipelineManagement({ initialFilter, onClearFilter }: Pip
     </span>
   );
 
+  // インポート処理
+  const handleImport = (items: PipelineItem[]) => {
+    setImportedData(items);
+  };
+
   return (
     <div className="h-full overflow-auto p-4 space-y-4">
       {/* ヘッダー */}
@@ -220,10 +231,53 @@ export default function PipelineManagement({ initialFilter, onClearFilter }: Pip
           </div>
           <p className="text-xs text-slate-500">Sales Insight {pipelineAsOf} 時点</p>
         </div>
-        <button className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">
-          + 案件追加
-        </button>
+        <div className="flex items-center gap-2">
+          {/* ビューモード切り替え */}
+          <div className="flex bg-slate-100 rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode('pipeline')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                viewMode === 'pipeline' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              パイプライン
+            </button>
+            <button
+              onClick={() => setViewMode('plan')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                viewMode === 'plan' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              計画比較
+            </button>
+          </div>
+          {/* Excelインポート */}
+          <button
+            onClick={() => setShowImportDialog(true)}
+            className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-1"
+          >
+            <span>📊</span> インポート
+          </button>
+          {/* 案件追加 */}
+          <button className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+            + 案件追加
+          </button>
+        </div>
       </div>
+
+      {/* Excelインポートダイアログ */}
+      <ExcelImportDialog
+        isOpen={showImportDialog}
+        onClose={() => setShowImportDialog(false)}
+        onImport={handleImport}
+      />
+
+      {/* 計画比較モード */}
+      {viewMode === 'plan' && <PlanComparison />}
+
+      {/* パイプラインモード */}
+      {viewMode === 'pipeline' && (
+        <>
 
       {/* 12ヶ月売上・パイプライン概要 */}
       <div className="bg-white rounded-lg border border-slate-200 p-4">
@@ -704,6 +758,8 @@ export default function PipelineManagement({ initialFilter, onClearFilter }: Pip
         <div className="bg-slate-50 rounded-lg p-8 text-center text-slate-500">
           条件に一致する案件がありません
         </div>
+      )}
+        </>
       )}
     </div>
   );

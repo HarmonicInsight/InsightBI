@@ -415,3 +415,236 @@ export function calculateDepartmentSummariesByMonth(month: number): DepartmentSu
 export function getPipelineByMonth(month: number): PipelineItem[] {
   return getMonthlyPipelineData(month);
 }
+
+// ============================================
+// Phase 2: 計画バージョン管理・上期下期集計
+// ============================================
+
+// 計画バージョン
+export interface PlanVersion {
+  id: string;
+  name: string; // "Plan1.0", "Plan1.2", "Plan1.3"
+  createdAt: string;
+  isActive: boolean;
+  monthlyTargets: { [month: number]: number }; // 月別目標（億円）
+  stageTargets?: { [stage: string]: number }; // 確度別目標
+}
+
+// サンプル計画バージョン
+export const planVersions: PlanVersion[] = [
+  {
+    id: 'plan10',
+    name: 'Plan1.0',
+    createdAt: '2025-04-01',
+    isActive: false,
+    monthlyTargets: { 4: 15, 5: 16, 6: 17, 7: 18, 8: 18, 9: 19, 10: 20, 11: 21, 12: 22, 1: 18, 2: 17, 3: 19 },
+  },
+  {
+    id: 'plan12',
+    name: 'Plan1.2',
+    createdAt: '2025-07-01',
+    isActive: false,
+    monthlyTargets: { 4: 15, 5: 16, 6: 18, 7: 19, 8: 19, 9: 20, 10: 21, 11: 22, 12: 23, 1: 19, 2: 18, 3: 20 },
+  },
+  {
+    id: 'plan13',
+    name: 'Plan1.3',
+    createdAt: '2025-10-01',
+    isActive: true,
+    monthlyTargets: { 4: 15, 5: 16, 6: 18, 7: 20, 8: 20, 9: 21, 10: 22, 11: 23, 12: 24, 1: 20, 2: 19, 3: 21 },
+    stageTargets: { A: 23, B: 38.8, C: 66.5, D: 105, O: 445 },
+  },
+];
+
+// 上期・下期の月定義（会計年度基準: 4月始まり）
+export const firstHalfMonths = [4, 5, 6, 7, 8, 9]; // 上期
+export const secondHalfMonths = [10, 11, 12, 1, 2, 3]; // 下期
+
+// 半期サマリーインターフェース
+export interface HalfYearSummary {
+  period: 'first' | 'second';
+  label: string;
+  months: number[];
+  totalBudget: number;
+  totalActual: number | null;
+  totalPipeline: number;
+  totalWeighted: number;
+  variance: number | null;
+  stageBreakdown: { stage: PipelineStage; amount: number; weighted: number }[];
+}
+
+// 上期/下期サマリーを計算
+export function calculateHalfYearSummary(data: PipelineItem[], monthlyActuals: { [month: number]: number | null }, monthlyBudgets: { [month: number]: number }): { first: HalfYearSummary; second: HalfYearSummary } {
+  const calcHalf = (months: number[], period: 'first' | 'second', label: string): HalfYearSummary => {
+    // 月別売上を集計
+    let totalPipeline = 0;
+    data.forEach(item => {
+      if (item.monthlyRevenue) {
+        months.forEach(m => {
+          totalPipeline += item.monthlyRevenue![m] || 0;
+        });
+      }
+    });
+
+    // 確度別集計
+    const stageBreakdown = pipelineStages.map(stage => {
+      const stageItems = data.filter(p => p.stage === stage.id);
+      let amount = 0;
+      stageItems.forEach(item => {
+        if (item.monthlyRevenue) {
+          months.forEach(m => {
+            amount += item.monthlyRevenue![m] || 0;
+          });
+        }
+      });
+      const weighted = amount * (stage.probability / 100);
+      return { stage: stage.id as PipelineStage, amount, weighted };
+    });
+
+    const totalWeighted = stageBreakdown.reduce((s, b) => s + b.weighted, 0);
+    const totalBudget = months.reduce((s, m) => s + (monthlyBudgets[m] || 0), 0);
+
+    // 実績は締め済み月のみ合計
+    let totalActual: number | null = 0;
+    let hasAnyActual = false;
+    months.forEach(m => {
+      if (monthlyActuals[m] !== null && monthlyActuals[m] !== undefined) {
+        totalActual! += monthlyActuals[m]!;
+        hasAnyActual = true;
+      }
+    });
+    if (!hasAnyActual) totalActual = null;
+
+    const variance = totalActual !== null ? totalActual - totalBudget : null;
+
+    return {
+      period,
+      label,
+      months,
+      totalBudget,
+      totalActual,
+      totalPipeline,
+      totalWeighted,
+      variance,
+      stageBreakdown,
+    };
+  };
+
+  return {
+    first: calcHalf(firstHalfMonths, 'first', '上期'),
+    second: calcHalf(secondHalfMonths, 'second', '下期'),
+  };
+}
+
+// 計画比較インターフェース
+export interface PlanComparison {
+  itemId: string;
+  itemName: string;
+  currentAmount: number;
+  planAmounts: { planId: string; planName: string; amount: number }[];
+  variances: { planId: string; variance: number; varianceRate: number }[];
+}
+
+// 現在のパイプラインと計画を比較
+export function comparePipelineWithPlans(activePlanId?: string): {
+  totalComparison: { planId: string; planName: string; planTotal: number; currentTotal: number; variance: number; varianceRate: number }[];
+  monthlyComparison: { month: number; planAmounts: { planId: string; amount: number }[]; currentAmount: number }[];
+} {
+  const currentMonthlyRevenue = calculateMonthlyPipelineRevenue();
+  const currentTotal = Object.values(currentMonthlyRevenue).reduce((s, v) => s + v, 0);
+
+  const totalComparison = planVersions.map(plan => {
+    const planTotal = Object.values(plan.monthlyTargets).reduce((s, v) => s + v, 0);
+    const variance = currentTotal - planTotal;
+    const varianceRate = planTotal > 0 ? (variance / planTotal) * 100 : 0;
+    return {
+      planId: plan.id,
+      planName: plan.name,
+      planTotal,
+      currentTotal,
+      variance,
+      varianceRate,
+    };
+  });
+
+  const allMonths = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+  const monthlyComparison = allMonths.map(month => ({
+    month,
+    planAmounts: planVersions.map(plan => ({
+      planId: plan.id,
+      amount: plan.monthlyTargets[month] || 0,
+    })),
+    currentAmount: currentMonthlyRevenue[month] || 0,
+  }));
+
+  return { totalComparison, monthlyComparison };
+}
+
+// アクティブな計画を取得
+export function getActivePlan(): PlanVersion | undefined {
+  return planVersions.find(p => p.isActive);
+}
+
+// 計画をLocalStorageに保存
+export function savePlanVersions(plans: PlanVersion[]): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('insightbi_plan_versions', JSON.stringify(plans));
+  }
+}
+
+// LocalStorageから計画を読み込み
+export function loadPlanVersions(): PlanVersion[] {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('insightbi_plan_versions');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  }
+  return planVersions;
+}
+
+// サブチーム別サマリー
+export interface SubTeamSummary {
+  subTeam: SubTeam;
+  totalAmount: number;
+  weightedAmount: number;
+  dealCount: number;
+  avgGrossMargin: number;
+  stageBreakdown: { stage: PipelineStage; amount: number; count: number }[];
+}
+
+// サブチーム別サマリーを計算
+export function calculateSubTeamSummaries(): SubTeamSummary[] {
+  return subTeams.map(team => {
+    const teamItems = pipelineData.filter(p => p.subTeamId === team.id);
+
+    const stageBreakdown = pipelineStages.map(stage => {
+      const stageItems = teamItems.filter(p => p.stage === stage.id);
+      return {
+        stage: stage.id as PipelineStage,
+        amount: stageItems.reduce((s, p) => s + p.amount, 0),
+        count: stageItems.length,
+      };
+    });
+
+    const totalAmount = teamItems.reduce((s, p) => s + p.amount, 0);
+    const weightedAmount = teamItems.reduce((s, p) => {
+      const stage = pipelineStages.find(st => st.id === p.stage);
+      return s + p.amount * ((stage?.probability || 0) / 100);
+    }, 0);
+
+    const itemsWithMargin = teamItems.filter(p => p.grossMarginRate);
+    const avgGrossMargin = itemsWithMargin.length > 0
+      ? itemsWithMargin.reduce((s, p) => s + (p.grossMarginRate || 0), 0) / itemsWithMargin.length
+      : 0;
+
+    return {
+      subTeam: team,
+      totalAmount,
+      weightedAmount,
+      dealCount: teamItems.length,
+      avgGrossMargin,
+      stageBreakdown,
+    };
+  });
+}
