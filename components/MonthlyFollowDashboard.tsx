@@ -108,15 +108,6 @@ export default function MonthlyFollowDashboard() {
   const pipelineWeighted = useMemo(() => getWeightedTotal(), []);
   const pipelineGross = useMemo(() => getGrossTotal(), []);
 
-  // 3レイヤー売上計算
-  const threeLayerRevenue = useMemo(() => {
-    const accountingRevenue = summary.revenueYTD || 0; // 会計売上（確定）
-    const managementRevenue = (summary.forecast || 0) + pipelineWeighted; // 経営売上（見込み込み）
-    const cashRevenue = currentData?.kpis.cash?.actual || 0; // 現金（キャッシュポジション）
-
-    return { accountingRevenue, managementRevenue, cashRevenue };
-  }, [summary, pipelineWeighted, currentData]);
-
   // 目標起点のKPI計算
   const targetKPIs = useMemo(() => {
     const annualTarget = fyBudget.revenue; // 通期目標
