@@ -10,6 +10,8 @@ import {
   departments,
   getMonthlyPipelineData,
   pipelineEventTypes,
+  getItemMonthlyTotal,
+  calculateMonthlyPipelineRevenue,
 } from '@/lib/pipelineData';
 import { monthlyDataset, monthOrder, fyBudget } from '@/lib/monthlyData';
 
@@ -95,17 +97,19 @@ export default function PipelineManagement({ initialFilter, onClearFilter }: Pip
     };
   }, [filterMonth]);
 
+  // パイプラインの月別売上積み上げ（案件のmonthlyRevenueから算出）
+  const pipelineMonthlyRevenue = useMemo(() => calculateMonthlyPipelineRevenue(), []);
+
   // 12ヶ月売上・パイプライン概要
   const yearlyOverview = useMemo(() => {
     return monthOrder.map(m => {
       const monthData = monthlyDataset.find(d => d.month === m);
       const revenue = monthData?.kpis.revenue;
       const monthPipeline = getMonthlyPipelineData(m);
-      const pipelineTotal = monthPipeline.reduce((sum, p) => sum + p.amount, 0);
-      const pipelineWeighted = monthPipeline.reduce((sum, p) => {
-        const stage = pipelineStages.find(s => s.id === p.stage);
-        return sum + p.amount * ((stage?.probability || 0) / 100);
-      }, 0);
+      // 案件の月別売上の積み上げ
+      const pipelineRevenue = pipelineMonthlyRevenue[m] || 0;
+      // 受注予定月ベースの件数
+      const dealCount = monthPipeline.length;
 
       return {
         month: m,
@@ -113,12 +117,11 @@ export default function PipelineManagement({ initialFilter, onClearFilter }: Pip
         isClosed: monthData?.isClosed || false,
         budget: revenue?.budget || 0,
         actual: revenue?.actual ?? null,
-        pipelineTotal,
-        pipelineWeighted,
-        dealCount: monthPipeline.length,
+        pipelineRevenue, // 月別売上の積み上げ
+        dealCount,
       };
     });
-  }, []);
+  }, [pipelineMonthlyRevenue]);
 
   // 担当者リスト
   const owners = useMemo(() => {
@@ -283,7 +286,7 @@ export default function PipelineManagement({ initialFilter, onClearFilter }: Pip
                   <td key={m.month} className={`py-1.5 px-1 text-center font-bold text-indigo-600 ${
                     filterMonth === m.month ? 'bg-indigo-100' : ''
                   }`}>
-                    {m.pipelineTotal > 0 ? m.pipelineTotal.toFixed(0) : '-'}
+                    {m.pipelineRevenue > 0 ? m.pipelineRevenue.toFixed(1) : '-'}
                   </td>
                 ))}
               </tr>
@@ -463,18 +466,17 @@ export default function PipelineManagement({ initialFilter, onClearFilter }: Pip
                 className="py-2 px-2 text-right font-medium cursor-pointer hover:text-indigo-600"
                 onClick={() => handleSort('amount')}
               >
-                金額
+                合計
                 <SortIcon active={sortKey === 'amount'} order={sortOrder} />
               </th>
-              <th
-                className="py-2 px-2 text-center font-medium cursor-pointer hover:text-indigo-600"
-                onClick={() => handleSort('expectedCloseMonth')}
-              >
-                受注月
-                <SortIcon active={sortKey === 'expectedCloseMonth'} order={sortOrder} />
+              <th className="py-2 px-1 text-center font-medium" colSpan={12}>
+                <div className="flex justify-between text-[10px]">
+                  {monthOrder.map(m => (
+                    <span key={m} className="w-6">{m}月</span>
+                  ))}
+                </div>
               </th>
               <th className="py-2 px-2 text-left font-medium">イベント</th>
-              <th className="py-2 px-2 text-left font-medium">ネクストアクション</th>
               <th
                 className="py-2 px-2 text-left font-medium cursor-pointer hover:text-indigo-600"
                 onClick={() => handleSort('owner')}
@@ -491,6 +493,7 @@ export default function PipelineManagement({ initialFilter, onClearFilter }: Pip
               const isExpanded = expandedRows.has(item.id);
               const latestEvent = item.events?.[item.events.length - 1];
               const latestEventConfig = latestEvent ? pipelineEventTypes.find(e => e.id === latestEvent.type) : null;
+              const monthlyTotal = getItemMonthlyTotal(item);
 
               return (
                 <>
@@ -513,25 +516,39 @@ export default function PipelineManagement({ initialFilter, onClearFilter }: Pip
                       <div className="font-medium text-slate-800">{item.name}</div>
                       <div className="text-[10px] text-slate-400">{item.customer}</div>
                     </td>
-                    <td className="py-2 px-2 text-right font-bold">{item.amount.toFixed(1)}億</td>
-                    <td className="py-2 px-2 text-center text-slate-600">{item.expectedCloseMonth}月</td>
+                    <td className="py-2 px-2 text-right">
+                      <div className="font-bold">{item.amount.toFixed(1)}億</div>
+                      {monthlyTotal > 0 && monthlyTotal !== item.amount && (
+                        <div className="text-[9px] text-slate-400">配分:{monthlyTotal.toFixed(1)}</div>
+                      )}
+                    </td>
+                    {/* 12ヶ月売上グリッド */}
+                    <td className="py-1 px-1" colSpan={12}>
+                      <div className="flex justify-between">
+                        {monthOrder.map(m => {
+                          const val = item.monthlyRevenue?.[m] || 0;
+                          const hasValue = val > 0;
+                          return (
+                            <div
+                              key={m}
+                              className={`w-6 h-6 flex items-center justify-center text-[9px] rounded ${
+                                hasValue
+                                  ? 'bg-indigo-100 text-indigo-700 font-bold'
+                                  : 'text-slate-200'
+                              }`}
+                              title={hasValue ? `${m}月: ${val.toFixed(1)}億` : ''}
+                            >
+                              {hasValue ? val.toFixed(1) : '-'}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </td>
                     <td className="py-2 px-2">
                       {latestEventConfig ? (
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${latestEventConfig.bgColor} ${latestEventConfig.color}`}>
                           {latestEventConfig.name}
                         </span>
-                      ) : (
-                        <span className="text-slate-300 text-xs">-</span>
-                      )}
-                    </td>
-                    <td className="py-2 px-2">
-                      {item.nextAction ? (
-                        <div>
-                          <div className="text-xs text-slate-700">{item.nextAction}</div>
-                          {item.nextActionDate && (
-                            <div className="text-[10px] text-slate-400">{item.nextActionDate}</div>
-                          )}
-                        </div>
                       ) : (
                         <span className="text-slate-300 text-xs">-</span>
                       )}
@@ -546,10 +563,10 @@ export default function PipelineManagement({ initialFilter, onClearFilter }: Pip
                       </button>
                     </td>
                   </tr>
-                  {/* 展開時のイベント履歴 */}
+                  {/* 展開時のイベント履歴・ネクストアクション */}
                   {isExpanded && (
                     <tr key={`${item.id}-events`} className="bg-slate-50 border-t border-slate-100">
-                      <td colSpan={9} className="py-3 px-4">
+                      <td colSpan={19} className="py-3 px-4">
                         <div className="flex gap-6">
                           {/* イベント履歴 */}
                           <div className="flex-1">
@@ -575,6 +592,20 @@ export default function PipelineManagement({ initialFilter, onClearFilter }: Pip
                               </div>
                             ) : (
                               <div className="text-xs text-slate-400">イベントなし</div>
+                            )}
+                          </div>
+                          {/* ネクストアクション */}
+                          <div className="text-xs">
+                            <div className="font-medium text-slate-600 mb-1">ネクストアクション</div>
+                            {item.nextAction ? (
+                              <div>
+                                <div className="text-slate-700">{item.nextAction}</div>
+                                {item.nextActionDate && (
+                                  <div className="text-slate-400">{item.nextActionDate}</div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-slate-400">未設定</div>
                             )}
                           </div>
                           {/* 詳細情報 */}

@@ -55,18 +55,24 @@ export interface PipelineStageConfig {
   description: string;
 }
 
+// 月別売上配分
+export type MonthlyRevenue = {
+  [month: number]: number; // 月 -> 売上（億円）
+};
+
 export interface PipelineItem {
   id: string;
   name: string;
-  amount: number; // 億円
+  amount: number; // 億円（合計）
   stage: PipelineStage;
-  expectedCloseMonth: number; // 1-12
+  expectedCloseMonth: number; // 主な受注月 1-12
   customer: string;
   owner: string;
   departmentId: string; // 部署ID
   events?: PipelineEvent[]; // イベント履歴
   nextAction?: string; // 次のアクション
   nextActionDate?: string; // 次のアクション日
+  monthlyRevenue?: MonthlyRevenue; // 月別売上配分
 }
 
 export interface PipelineSummary {
@@ -86,8 +92,9 @@ export const pipelineStages: PipelineStageConfig[] = [
 
 // サンプルパイプラインデータ（実際はSales Insightから取得）
 export const pipelineData: PipelineItem[] = [
-  // A案件（80%）
+  // A案件（80%）- 月別売上配分あり
   { id: 'A001', name: '○○ビル新築工事', amount: 8.5, stage: 'A', expectedCloseMonth: 10, customer: '○○不動産', owner: '田中', departmentId: 'sales1',
+    monthlyRevenue: { 10: 2.0, 11: 3.0, 12: 2.0, 1: 1.5 }, // 10月から4ヶ月で計上
     events: [
       { id: 'e1', type: 'initial_contact', date: '2025-04-10', note: '紹介で初回訪問' },
       { id: 'e2', type: 'proposal', date: '2025-05-20', note: '概算見積提出' },
@@ -95,51 +102,83 @@ export const pipelineData: PipelineItem[] = [
     ],
     nextAction: '契約書確認', nextActionDate: '2025-10-05' },
   { id: 'A002', name: '△△マンション改修', amount: 4.2, stage: 'A', expectedCloseMonth: 11, customer: '△△管理組合', owner: '佐藤', departmentId: 'sales1',
+    monthlyRevenue: { 11: 1.5, 12: 1.5, 1: 1.2 }, // 3ヶ月で計上
     events: [
       { id: 'e1', type: 'initial_contact', date: '2025-03-15' },
       { id: 'e2', type: 'proposal', date: '2025-06-01' },
     ],
     nextAction: '理事会承認待ち', nextActionDate: '2025-10-20' },
   { id: 'A003', name: '□□工場増設', amount: 6.8, stage: 'A', expectedCloseMonth: 12, customer: '□□製作所', owner: '鈴木', departmentId: 'sales2',
+    monthlyRevenue: { 12: 2.5, 1: 2.5, 2: 1.8 }, // 3ヶ月
     events: [
       { id: 'e1', type: 'proposal', date: '2025-07-10' },
       { id: 'e2', type: 'negotiation', date: '2025-09-01' },
     ] },
   { id: 'A004', name: '◇◇病院リニューアル', amount: 3.5, stage: 'A', expectedCloseMonth: 1, customer: '◇◇医療法人', owner: '高橋', departmentId: 'sales3',
+    monthlyRevenue: { 1: 1.5, 2: 1.0, 3: 1.0 },
     events: [
       { id: 'e1', type: 'proposal', date: '2025-08-20' },
     ] },
 
   // B案件（50%）
   { id: 'B001', name: '××商業施設', amount: 12.0, stage: 'B', expectedCloseMonth: 11, customer: '××リテール', owner: '伊藤', departmentId: 'sales1',
+    monthlyRevenue: { 11: 3.0, 12: 4.0, 1: 3.0, 2: 2.0 }, // 4ヶ月
     events: [
       { id: 'e1', type: 'initial_contact', date: '2025-05-01' },
       { id: 'e2', type: 'proposal', date: '2025-08-10' },
     ],
     nextAction: '詳細見積提出', nextActionDate: '2025-10-10' },
   { id: 'B002', name: '▽▽オフィスビル', amount: 7.5, stage: 'B', expectedCloseMonth: 12, customer: '▽▽商事', owner: '渡辺', departmentId: 'sales2',
+    monthlyRevenue: { 12: 2.5, 1: 2.5, 2: 2.5 },
     events: [
       { id: 'e1', type: 'proposal', date: '2025-07-15' },
     ] },
-  { id: 'B003', name: '◎◎物流センター', amount: 9.0, stage: 'B', expectedCloseMonth: 1, customer: '◎◎物流', owner: '山本', departmentId: 'sales2' },
-  { id: 'B004', name: '☆☆学校体育館', amount: 4.5, stage: 'B', expectedCloseMonth: 2, customer: '☆☆市教育委員会', owner: '中村', departmentId: 'sales3' },
-  { id: 'B005', name: '◆◆ホテル改装', amount: 5.8, stage: 'B', expectedCloseMonth: 3, customer: '◆◆観光', owner: '小林', departmentId: 'sales3' },
+  { id: 'B003', name: '◎◎物流センター', amount: 9.0, stage: 'B', expectedCloseMonth: 1, customer: '◎◎物流', owner: '山本', departmentId: 'sales2',
+    monthlyRevenue: { 1: 3.0, 2: 3.0, 3: 3.0 } },
+  { id: 'B004', name: '☆☆学校体育館', amount: 4.5, stage: 'B', expectedCloseMonth: 2, customer: '☆☆市教育委員会', owner: '中村', departmentId: 'sales3',
+    monthlyRevenue: { 2: 2.0, 3: 2.5 } },
+  { id: 'B005', name: '◆◆ホテル改装', amount: 5.8, stage: 'B', expectedCloseMonth: 3, customer: '◆◆観光', owner: '小林', departmentId: 'sales3',
+    monthlyRevenue: { 3: 5.8 } }, // 一括計上
 
   // C案件（20%）
   { id: 'C001', name: '●●タワー新築', amount: 25.0, stage: 'C', expectedCloseMonth: 2, customer: '●●開発', owner: '加藤', departmentId: 'sales1',
+    monthlyRevenue: { 2: 5.0, 3: 8.0 }, // 初期の一部のみ計画
     events: [
       { id: 'e1', type: 'initial_contact', date: '2025-06-01' },
     ],
     nextAction: '提案書作成', nextActionDate: '2025-10-15' },
-  { id: 'C002', name: '■■工場移転', amount: 15.0, stage: 'C', expectedCloseMonth: 3, customer: '■■工業', owner: '吉田', departmentId: 'sales2' },
-  { id: 'C003', name: '▲▲研究施設', amount: 8.5, stage: 'C', expectedCloseMonth: 3, customer: '▲▲製薬', owner: '山田', departmentId: 'sales2' },
-  { id: 'C004', name: '★★データセンター', amount: 18.0, stage: 'C', expectedCloseMonth: 3, customer: '★★IT', owner: '佐々木', departmentId: 'sales3' },
+  { id: 'C002', name: '■■工場移転', amount: 15.0, stage: 'C', expectedCloseMonth: 3, customer: '■■工業', owner: '吉田', departmentId: 'sales2',
+    monthlyRevenue: { 3: 5.0 } }, // 一部のみ
+  { id: 'C003', name: '▲▲研究施設', amount: 8.5, stage: 'C', expectedCloseMonth: 3, customer: '▲▲製薬', owner: '山田', departmentId: 'sales2',
+    monthlyRevenue: { 3: 3.0 } },
+  { id: 'C004', name: '★★データセンター', amount: 18.0, stage: 'C', expectedCloseMonth: 3, customer: '★★IT', owner: '佐々木', departmentId: 'sales3',
+    monthlyRevenue: { 3: 6.0 } },
 
-  // D案件（話のみ）
+  // D案件（話のみ）- 月配分はまだ未定
   { id: 'D001', name: '○△複合施設計画', amount: 50.0, stage: 'D', expectedCloseMonth: 3, customer: '○△ホールディングス', owner: '松本', departmentId: 'sales1' },
   { id: 'D002', name: '□×再開発プロジェクト', amount: 35.0, stage: 'D', expectedCloseMonth: 3, customer: '□×都市開発', owner: '井上', departmentId: 'sales2' },
   { id: 'D003', name: '◇◎新工場構想', amount: 20.0, stage: 'D', expectedCloseMonth: 3, customer: '◇◎自動車', owner: '木村', departmentId: 'sales3' },
 ];
+
+// 案件の月別売上合計を計算
+export function getItemMonthlyTotal(item: PipelineItem): number {
+  if (!item.monthlyRevenue) return 0;
+  return Object.values(item.monthlyRevenue).reduce((sum, v) => sum + v, 0);
+}
+
+// 月別のパイプライン売上合計を計算（全案件の月別売上を積み上げ）
+export function calculateMonthlyPipelineRevenue(): { [month: number]: number } {
+  const result: { [month: number]: number } = {};
+  pipelineData.forEach(item => {
+    if (item.monthlyRevenue) {
+      Object.entries(item.monthlyRevenue).forEach(([m, v]) => {
+        const month = parseInt(m);
+        result[month] = (result[month] || 0) + v;
+      });
+    }
+  });
+  return result;
+}
 
 // パイプラインサマリーを計算
 export function calculatePipelineSummary(): PipelineSummary[] {
