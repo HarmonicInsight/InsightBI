@@ -13,6 +13,7 @@ import { PerformanceData } from '@/lib/types';
 import { DashboardData } from '@/lib/processData';
 import { useSessionTimeout } from '@/lib/useSessionTimeout';
 import { addAuditLog } from '@/lib/exportUtils';
+import { PipelineStage } from '@/lib/pipelineData';
 
 interface MainDashboardProps {
   performanceData: PerformanceData;
@@ -72,8 +73,14 @@ const mainTabs = [
   },
 ];
 
+interface PipelineFilter {
+  departmentId?: string;
+  stage?: PipelineStage;
+}
+
 export default function MainDashboard({ performanceData, diData }: MainDashboardProps) {
   const [activeMain, setActiveMain] = useState<'monthly' | 'pipeline' | 'kpi' | 'company' | 'action'>('monthly');
+  const [pipelineFilter, setPipelineFilter] = useState<PipelineFilter>({});
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [username, setUsername] = useState('');
@@ -102,6 +109,12 @@ export default function MainDashboard({ performanceData, diData }: MainDashboard
     warningMinutes: 5,
     onWarning: () => setShowTimeoutWarning(true),
   });
+
+  // Handle navigation to pipeline with filter
+  const handleNavigateToPipeline = useCallback((filter: PipelineFilter) => {
+    setPipelineFilter(filter);
+    setActiveMain('pipeline');
+  }, []);
 
   // Check authentication on mount (server-side session)
   const checkSession = useCallback(async () => {
@@ -319,10 +332,13 @@ export default function MainDashboard({ performanceData, diData }: MainDashboard
       {/* Main Content */}
       <div className="flex-1 overflow-hidden">
         {activeMain === 'monthly' && (
-          <MonthlyFollowDashboard />
+          <MonthlyFollowDashboard onNavigateToPipeline={handleNavigateToPipeline} />
         )}
         {activeMain === 'pipeline' && (
-          <PipelineManagement />
+          <PipelineManagement
+            initialFilter={pipelineFilter}
+            onClearFilter={() => setPipelineFilter({})}
+          />
         )}
         {activeMain === 'kpi' && (
           <BusinessTreeDashboard />

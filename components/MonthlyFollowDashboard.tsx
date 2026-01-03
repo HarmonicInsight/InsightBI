@@ -18,6 +18,8 @@ import {
   getWeightedTotal,
   getGrossTotal,
   pipelineAsOf,
+  calculateDepartmentSummaries,
+  PipelineStage,
 } from '@/lib/pipelineData';
 import MonthlyGraphDashboard from './MonthlyGraphDashboard';
 
@@ -50,7 +52,11 @@ function varColor(rate: number | null, isHigherBetter: boolean): string {
   return 'text-red-600';
 }
 
-export default function MonthlyFollowDashboard() {
+interface MonthlyFollowDashboardProps {
+  onNavigateToPipeline?: (filter: { departmentId?: string; stage?: PipelineStage }) => void;
+}
+
+export default function MonthlyFollowDashboard({ onNavigateToPipeline }: MonthlyFollowDashboardProps) {
   const currentClosedMonth = getCurrentClosedMonth();
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [selectedMonth, setSelectedMonth] = useState(currentClosedMonth);
@@ -104,6 +110,9 @@ export default function MonthlyFollowDashboard() {
 
     return { annualTarget, confirmedYTD, continuingRevenue, newBusinessRequired, currentStack, achievementRate };
   }, [summary, pipelineSummary, pipelineWeighted]);
+
+  // 部署別サマリー
+  const departmentSummaries = useMemo(() => calculateDepartmentSummaries(), []);
 
   const isTableView = viewMode === 'table';
 
@@ -311,6 +320,114 @@ export default function MonthlyFollowDashboard() {
                 ⚠ 全パイプライン込みでも <span className="font-bold">{targetKPIs.newBusinessRequired.toFixed(0)}億円</span> 不足。新規案件の獲得が必要。
               </div>
             )}
+          </div>
+
+          {/* 部署別ブレイクダウン */}
+          <div className="bg-white rounded-lg border border-slate-200 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold text-slate-800">部署別 目標達成状況</h2>
+              <span className="text-[10px] text-slate-400">クリックで案件一覧へ</span>
+            </div>
+            <div className="space-y-3">
+              {departmentSummaries.map(dept => {
+                const barWidth = Math.min(100, dept.achievementRate);
+                const isShort = dept.gap > 0;
+                return (
+                  <div
+                    key={dept.department.id}
+                    className="border border-slate-100 rounded-lg p-3 hover:border-indigo-200 transition-colors cursor-pointer"
+                    onClick={() => onNavigateToPipeline?.({ departmentId: dept.department.id })}
+                  >
+                    {/* 部署ヘッダー */}
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-800">{dept.department.name}</span>
+                        {isShort && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-700 rounded font-medium">
+                            要フォロー
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-lg font-bold ${dept.achievementRate >= 100 ? 'text-emerald-600' : dept.achievementRate >= 80 ? 'text-amber-600' : 'text-red-600'}`}>
+                          {dept.achievementRate.toFixed(0)}%
+                        </span>
+                        <span className="text-xs text-slate-400 ml-1">達成見込</span>
+                      </div>
+                    </div>
+                    {/* プログレスバー */}
+                    <div className="h-6 bg-slate-100 rounded overflow-hidden flex mb-2">
+                      <div
+                        className="bg-slate-700 h-full flex items-center justify-center text-[10px] text-white"
+                        style={{ width: `${(dept.department.confirmedYTD / dept.department.target) * 100}%` }}
+                      >
+                        {(dept.department.confirmedYTD / dept.department.target) * 100 > 8 && '確定'}
+                      </div>
+                      {dept.stageBreakdown.map(sb => {
+                        const stage = pipelineStages.find(s => s.id === sb.stage)!;
+                        const widthPct = (sb.weighted / dept.department.target) * 100;
+                        if (widthPct < 1) return null;
+                        return (
+                          <div
+                            key={sb.stage}
+                            className={`${stage.bgColor} h-full flex items-center justify-center text-[10px] font-medium ${stage.color} cursor-pointer hover:opacity-80`}
+                            style={{ width: `${widthPct}%` }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onNavigateToPipeline?.({ departmentId: dept.department.id, stage: sb.stage });
+                            }}
+                            title={`${stage.name}: ${sb.amount.toFixed(1)}億 (見込${sb.weighted.toFixed(1)}億)`}
+                          >
+                            {widthPct > 5 && sb.stage}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* 数値サマリー */}
+                    <div className="grid grid-cols-4 gap-2 text-[11px]">
+                      <div className="text-center">
+                        <div className="text-slate-400">目標</div>
+                        <div className="font-bold text-slate-800">{dept.department.target}億</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-slate-400">確定</div>
+                        <div className="font-bold text-slate-600">{dept.department.confirmedYTD.toFixed(1)}億</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-slate-400">見込み</div>
+                        <div className="font-bold text-indigo-600">{dept.pipelineWeighted.toFixed(1)}億</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-slate-400">不足</div>
+                        <div className={`font-bold ${isShort ? 'text-red-600' : 'text-emerald-600'}`}>
+                          {isShort ? dept.gap.toFixed(1) : '0'}億
+                        </div>
+                      </div>
+                    </div>
+                    {/* ステージ別内訳（コンパクト） */}
+                    <div className="mt-2 flex gap-2">
+                      {dept.stageBreakdown.map(sb => {
+                        const stage = pipelineStages.find(s => s.id === sb.stage)!;
+                        if (sb.amount === 0) return null;
+                        return (
+                          <button
+                            key={sb.stage}
+                            className={`flex-1 p-1.5 rounded ${stage.bgColor} hover:opacity-80 transition-opacity`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onNavigateToPipeline?.({ departmentId: dept.department.id, stage: sb.stage });
+                            }}
+                          >
+                            <div className={`text-[10px] font-bold ${stage.color}`}>{stage.id}</div>
+                            <div className={`text-xs font-bold ${stage.color}`}>{sb.amount.toFixed(0)}億</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* KPIジャンル別 */}

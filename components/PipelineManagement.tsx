@@ -1,22 +1,55 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   pipelineStages,
   pipelineData,
   pipelineAsOf,
   PipelineItem,
   PipelineStage,
+  departments,
 } from '@/lib/pipelineData';
 
 type SortKey = 'amount' | 'stage' | 'expectedCloseMonth' | 'customer' | 'owner';
 type SortOrder = 'asc' | 'desc';
 
-export default function PipelineManagement() {
+interface PipelineManagementProps {
+  initialFilter?: {
+    departmentId?: string;
+    stage?: PipelineStage;
+  };
+  onClearFilter?: () => void;
+}
+
+export default function PipelineManagement({ initialFilter, onClearFilter }: PipelineManagementProps) {
   const [filterStage, setFilterStage] = useState<PipelineStage | 'all'>('all');
   const [filterOwner, setFilterOwner] = useState<string>('all');
+  const [filterDepartment, setFilterDepartment] = useState<string>('all');
   const [sortKey, setSortKey] = useState<SortKey>('amount');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  // 初期フィルターの適用
+  useEffect(() => {
+    if (initialFilter) {
+      if (initialFilter.departmentId) {
+        setFilterDepartment(initialFilter.departmentId);
+      }
+      if (initialFilter.stage) {
+        setFilterStage(initialFilter.stage);
+      }
+    }
+  }, [initialFilter]);
+
+  // フィルタークリア
+  const handleClearFilter = () => {
+    setFilterStage('all');
+    setFilterOwner('all');
+    setFilterDepartment('all');
+    onClearFilter?.();
+  };
+
+  // フィルターが適用されているか
+  const hasActiveFilter = filterStage !== 'all' || filterOwner !== 'all' || filterDepartment !== 'all';
 
   // 担当者リスト
   const owners = useMemo(() => {
@@ -28,6 +61,9 @@ export default function PipelineManagement() {
   const filteredData = useMemo(() => {
     let data = [...pipelineData];
 
+    if (filterDepartment !== 'all') {
+      data = data.filter(p => p.departmentId === filterDepartment);
+    }
     if (filterStage !== 'all') {
       data = data.filter(p => p.stage === filterStage);
     }
@@ -58,7 +94,7 @@ export default function PipelineManagement() {
     });
 
     return data;
-  }, [filterStage, filterOwner, sortKey, sortOrder]);
+  }, [filterDepartment, filterStage, filterOwner, sortKey, sortOrder]);
 
   // 集計
   const summary = useMemo(() => {
@@ -90,7 +126,19 @@ export default function PipelineManagement() {
       {/* ヘッダー */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">パイプライン管理</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-slate-900">パイプライン管理</h1>
+            {filterDepartment !== 'all' && (
+              <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-medium rounded">
+                {departments.find(d => d.id === filterDepartment)?.name}
+              </span>
+            )}
+            {filterStage !== 'all' && (
+              <span className={`px-2 py-0.5 ${pipelineStages.find(s => s.id === filterStage)?.bgColor} ${pipelineStages.find(s => s.id === filterStage)?.color} text-xs font-bold rounded`}>
+                {filterStage}案件
+              </span>
+            )}
+          </div>
           <p className="text-xs text-slate-500">Sales Insight {pipelineAsOf} 時点</p>
         </div>
         <button className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">
@@ -100,6 +148,19 @@ export default function PipelineManagement() {
 
       {/* フィルター */}
       <div className="bg-white rounded-lg border border-slate-200 p-3 flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500">部署:</span>
+          <select
+            value={filterDepartment}
+            onChange={(e) => setFilterDepartment(e.target.value)}
+            className="text-sm border border-slate-200 rounded px-2 py-1"
+          >
+            <option value="all">すべて</option>
+            {departments.map(d => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
+        </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500">ステージ:</span>
           <select
@@ -126,6 +187,14 @@ export default function PipelineManagement() {
             ))}
           </select>
         </div>
+        {hasActiveFilter && (
+          <button
+            onClick={handleClearFilter}
+            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+          >
+            フィルター解除
+          </button>
+        )}
         <div className="flex-1" />
         <div className="text-sm text-slate-600">
           <span className="font-medium">{summary.count}</span>件 /
@@ -166,6 +235,7 @@ export default function PipelineManagement() {
             <tr className="text-xs text-slate-600">
               <th className="py-2 px-3 text-left font-medium">ステージ</th>
               <th className="py-2 px-3 text-left font-medium">案件名</th>
+              <th className="py-2 px-3 text-left font-medium">部署</th>
               <th
                 className="py-2 px-3 text-left font-medium cursor-pointer hover:text-indigo-600"
                 onClick={() => handleSort('customer')}
@@ -208,6 +278,7 @@ export default function PipelineManagement() {
                     </span>
                   </td>
                   <td className="py-2 px-3 font-medium text-slate-800">{item.name}</td>
+                  <td className="py-2 px-3 text-slate-500 text-xs">{departments.find(d => d.id === item.departmentId)?.name || '-'}</td>
                   <td className="py-2 px-3 text-slate-600">{item.customer}</td>
                   <td className="py-2 px-3 text-right font-bold">{item.amount.toFixed(1)}億</td>
                   <td className="py-2 px-3 text-center text-slate-600">{item.expectedCloseMonth}月</td>
