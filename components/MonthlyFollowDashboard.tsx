@@ -236,51 +236,81 @@ export default function MonthlyFollowDashboard() {
               </div>
             </div>
 
-            {/* 積み上げ内訳テーブル */}
+            {/* 積み上げ累積テーブル */}
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-slate-600">パイプライン内訳</span>
+              <span className="text-xs font-medium text-slate-600">目標達成までの積み上げ</span>
               <span className="text-[10px] text-slate-400">Sales Insight {pipelineAsOf} 時点</span>
             </div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-[10px] text-slate-500 border-b border-slate-200">
-                  <th className="py-1 text-left font-medium">区分</th>
-                  <th className="py-1 text-right font-medium">案件総額</th>
-                  <th className="py-1 text-right font-medium">確率</th>
-                  <th className="py-1 text-right font-medium">見込み（加重）</th>
+                  <th className="py-1 text-left font-medium">段階</th>
+                  <th className="py-1 text-right font-medium">この段階</th>
+                  <th className="py-1 text-right font-medium">累積見込み</th>
+                  <th className="py-1 text-right font-medium">達成率</th>
+                  <th className="py-1 text-left font-medium pl-3">状況</th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b border-slate-100 bg-slate-50">
-                  <td className="py-2 font-medium text-slate-800">確定売上</td>
-                  <td className="py-2 text-right font-bold">{targetKPIs.confirmedYTD.toFixed(1)}億</td>
-                  <td className="py-2 text-right text-slate-400">100%</td>
-                  <td className="py-2 text-right font-bold text-slate-800">{targetKPIs.confirmedYTD.toFixed(1)}億</td>
-                </tr>
-                {pipelineStages.map(stage => {
-                  const data = pipelineSummary.find(s => s.stage === stage.id);
-                  const raw = data?.totalAmount || 0;
-                  const weighted = raw * (stage.probability / 100);
-                  return (
-                    <tr key={stage.id} className="border-b border-slate-100">
-                      <td className="py-2">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${stage.bgColor} ${stage.color}`}>{stage.id}</span>
-                        <span className="text-slate-500 ml-1 text-xs">{data?.count || 0}件</span>
-                      </td>
-                      <td className="py-2 text-right text-slate-600">{raw.toFixed(1)}億</td>
-                      <td className="py-2 text-right text-slate-400">×{stage.probability}%</td>
-                      <td className={`py-2 text-right font-medium ${stage.color}`}>{weighted.toFixed(1)}億</td>
+                {(() => {
+                  let cumulative = targetKPIs.confirmedYTD;
+                  const rows = [];
+
+                  // 確定売上
+                  const confirmedRate = (cumulative / targetKPIs.annualTarget) * 100;
+                  rows.push(
+                    <tr key="confirmed" className="border-b border-slate-100 bg-slate-50">
+                      <td className="py-2 font-medium text-slate-800">確定のみ</td>
+                      <td className="py-2 text-right">{targetKPIs.confirmedYTD.toFixed(1)}億</td>
+                      <td className="py-2 text-right font-bold">{cumulative.toFixed(1)}億</td>
+                      <td className="py-2 text-right font-medium">{confirmedRate.toFixed(0)}%</td>
+                      <td className="py-2 pl-3 text-xs text-slate-500">継続分</td>
                     </tr>
                   );
-                })}
-                <tr className="bg-indigo-50 font-bold">
-                  <td className="py-2 text-indigo-800">合計（積み上げ）</td>
-                  <td className="py-2 text-right text-slate-600">{(targetKPIs.confirmedYTD + pipelineGross).toFixed(1)}億</td>
-                  <td className="py-2 text-right"></td>
-                  <td className="py-2 text-right text-indigo-700">{targetKPIs.currentStack.toFixed(1)}億</td>
-                </tr>
+
+                  // A〜D累積
+                  pipelineStages.forEach((stage, idx) => {
+                    const data = pipelineSummary.find(s => s.stage === stage.id);
+                    const weighted = (data?.totalAmount || 0) * (stage.probability / 100);
+                    cumulative += weighted;
+                    const rate = (cumulative / targetKPIs.annualTarget) * 100;
+                    const isLowProb = stage.probability <= 20;
+                    const reachedTarget = cumulative >= targetKPIs.annualTarget;
+
+                    rows.push(
+                      <tr key={stage.id} className={`border-b border-slate-100 ${isLowProb ? 'bg-amber-50' : ''}`}>
+                        <td className="py-2">
+                          <span className="text-slate-600">〜</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${stage.bgColor} ${stage.color} ml-1`}>{stage.id}</span>
+                          <span className="text-slate-400 text-[10px] ml-1">({stage.probability}%)</span>
+                        </td>
+                        <td className="py-2 text-right text-slate-500">+{weighted.toFixed(1)}億</td>
+                        <td className={`py-2 text-right font-bold ${reachedTarget ? 'text-emerald-600' : ''}`}>{cumulative.toFixed(1)}億</td>
+                        <td className={`py-2 text-right font-medium ${rate >= 100 ? 'text-emerald-600' : rate >= 80 ? 'text-amber-600' : 'text-red-600'}`}>
+                          {rate.toFixed(0)}%
+                        </td>
+                        <td className="py-2 pl-3 text-xs">
+                          {reachedTarget ? (
+                            <span className="text-emerald-600 font-medium">達成ライン</span>
+                          ) : isLowProb ? (
+                            <span className="text-amber-600 font-medium">要刈り取り</span>
+                          ) : (
+                            <span className="text-slate-400">{data?.count || 0}件</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  });
+
+                  return rows;
+                })()}
               </tbody>
             </table>
+            {targetKPIs.newBusinessRequired > 0 && (
+              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                ⚠ 全パイプライン込みでも <span className="font-bold">{targetKPIs.newBusinessRequired.toFixed(0)}億円</span> 不足。新規案件の獲得が必要。
+              </div>
+            )}
           </div>
 
           {/* KPIジャンル別 */}

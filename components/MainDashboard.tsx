@@ -8,6 +8,7 @@ import ActionTracker from '@/components/ActionTracker';
 import SettingsModal from '@/components/SettingsModal';
 import BusinessTreeDashboard from '@/components/BusinessTreeDashboard';
 import MonthlyFollowDashboard from '@/components/MonthlyFollowDashboard';
+import PipelineManagement from '@/components/PipelineManagement';
 import { PerformanceData } from '@/lib/types';
 import { DashboardData } from '@/lib/processData';
 import { useSessionTimeout } from '@/lib/useSessionTimeout';
@@ -26,6 +27,16 @@ const mainTabs = [
     icon: (
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-5 h-5">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'pipeline',
+    label: 'パイプライン',
+    description: '案件管理',
+    icon: (
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-5 h-5">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
       </svg>
     ),
   },
@@ -62,7 +73,7 @@ const mainTabs = [
 ];
 
 export default function MainDashboard({ performanceData, diData }: MainDashboardProps) {
-  const [activeMain, setActiveMain] = useState<'monthly' | 'kpi' | 'company' | 'action'>('monthly');
+  const [activeMain, setActiveMain] = useState<'monthly' | 'pipeline' | 'kpi' | 'company' | 'action'>('monthly');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [username, setUsername] = useState('');
@@ -242,7 +253,7 @@ export default function MainDashboard({ performanceData, diData }: MainDashboard
               {mainTabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveMain(tab.id as 'monthly' | 'kpi' | 'company' | 'action')}
+                  onClick={() => setActiveMain(tab.id as 'monthly' | 'pipeline' | 'kpi' | 'company' | 'action')}
                   className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
                     activeMain === tab.id
                       ? 'bg-white/20 text-white'
@@ -309,6 +320,9 @@ export default function MainDashboard({ performanceData, diData }: MainDashboard
       <div className="flex-1 overflow-hidden">
         {activeMain === 'monthly' && (
           <MonthlyFollowDashboard />
+        )}
+        {activeMain === 'pipeline' && (
+          <PipelineManagement />
         )}
         {activeMain === 'kpi' && (
           <BusinessTreeDashboard />
