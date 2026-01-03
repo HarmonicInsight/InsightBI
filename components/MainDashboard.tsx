@@ -10,6 +10,7 @@ import DataImportModal from '@/components/DataImportModal';
 import BusinessTreeDashboard from '@/components/BusinessTreeDashboard';
 import MonthlyFollowDashboard from '@/components/MonthlyFollowDashboard';
 import PipelineManagement from '@/components/PipelineManagement';
+import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 import { PerformanceData } from '@/lib/types';
 import { DashboardData } from '@/lib/processData';
 import { useSessionTimeout } from '@/lib/useSessionTimeout';
@@ -39,6 +40,16 @@ const mainTabs = [
     icon: (
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-5 h-5">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+      </svg>
+    ),
+  },
+  {
+    id: 'analytics',
+    label: 'グラフ集',
+    description: '統計・可視化',
+    icon: (
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-5 h-5">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
       </svg>
     ),
   },
@@ -80,7 +91,7 @@ interface PipelineFilter {
 }
 
 export default function MainDashboard({ performanceData, diData }: MainDashboardProps) {
-  const [activeMain, setActiveMain] = useState<'monthly' | 'pipeline' | 'kpi' | 'company' | 'action'>('monthly');
+  const [activeMain, setActiveMain] = useState<'monthly' | 'pipeline' | 'analytics' | 'kpi' | 'company' | 'action'>('monthly');
   const [pipelineFilter, setPipelineFilter] = useState<PipelineFilter>({});
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -275,7 +286,7 @@ export default function MainDashboard({ performanceData, diData }: MainDashboard
               {mainTabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveMain(tab.id as 'monthly' | 'pipeline' | 'kpi' | 'company' | 'action')}
+                  onClick={() => setActiveMain(tab.id as 'monthly' | 'pipeline' | 'analytics' | 'kpi' | 'company' | 'action')}
                   className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
                     activeMain === tab.id
                       ? 'bg-white/20 text-white'
@@ -359,6 +370,9 @@ export default function MainDashboard({ performanceData, diData }: MainDashboard
             initialFilter={pipelineFilter}
             onClearFilter={() => setPipelineFilter({})}
           />
+        )}
+        {activeMain === 'analytics' && (
+          <AnalyticsDashboard key={`analytics-${refreshKey}`} />
         )}
         {activeMain === 'kpi' && (
           <BusinessTreeDashboard />
