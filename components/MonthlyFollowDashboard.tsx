@@ -340,6 +340,100 @@ export default function MonthlyFollowDashboard({ onNavigateToPipeline }: Monthly
             )}
           </div>
 
+          {/* 月別売上サマリー */}
+          <div className="bg-white rounded-lg border border-slate-200 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold text-slate-800">月別売上実績</h2>
+              <div className="text-xs text-slate-500">
+                累計: <span className="font-bold text-indigo-600">{(summary.revenueYTD || 0).toFixed(1)}億</span>
+                <span className="text-slate-400 mx-1">/</span>
+                通期目標: <span className="font-bold">{fyBudget.revenue}億</span>
+              </div>
+            </div>
+
+            {/* 12ヶ月グリッド */}
+            <div className="grid grid-cols-12 gap-1 mb-2">
+              {monthOrder.map(m => {
+                const data = monthlyDataset.find(d => d.month === m);
+                const revenue = data?.kpis.revenue;
+                const budget = revenue?.budget || 0;
+                const actual = revenue?.actual ?? null;
+                const isClosed = data?.isClosed || false;
+                const isSelected = selectedMonth === m;
+
+                // バー高さ計算（予算ベースで正規化、最大25億想定）
+                const maxHeight = 48;
+                const budgetHeight = Math.min((budget / 25) * maxHeight, maxHeight);
+                const actualHeight = actual !== null ? Math.min((actual / 25) * maxHeight, maxHeight) : 0;
+
+                // 差異による色分け
+                let barColor = 'bg-slate-300';
+                if (isClosed && actual !== null) {
+                  const variance = actual - budget;
+                  if (variance >= 0) barColor = 'bg-emerald-500';
+                  else if (variance >= -1) barColor = 'bg-amber-400';
+                  else barColor = 'bg-red-400';
+                }
+
+                return (
+                  <div
+                    key={m}
+                    className={`flex flex-col items-center cursor-pointer transition-all ${
+                      isSelected ? 'scale-110' : 'hover:scale-105'
+                    }`}
+                    onClick={() => setSelectedMonth(m)}
+                  >
+                    {/* バーチャート */}
+                    <div className="relative w-full h-12 flex items-end justify-center gap-0.5">
+                      {/* 予算バー */}
+                      <div
+                        className="w-2 bg-slate-200 rounded-t"
+                        style={{ height: `${budgetHeight}px` }}
+                        title={`予算: ${budget.toFixed(1)}億`}
+                      />
+                      {/* 実績バー */}
+                      <div
+                        className={`w-2 rounded-t ${isClosed ? barColor : 'bg-slate-100'}`}
+                        style={{ height: `${actualHeight}px` }}
+                        title={actual !== null ? `実績: ${actual.toFixed(1)}億` : '未確定'}
+                      />
+                    </div>
+                    {/* 月ラベル */}
+                    <div className={`text-[10px] mt-1 ${
+                      isSelected ? 'font-bold text-indigo-600' : isClosed ? 'text-slate-600' : 'text-slate-400'
+                    }`}>
+                      {m}月
+                    </div>
+                    {/* 実績値（あれば） */}
+                    <div className={`text-[9px] ${isClosed ? 'text-slate-500' : 'text-slate-300'}`}>
+                      {actual !== null ? `${actual.toFixed(0)}` : '-'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 凡例 */}
+            <div className="flex items-center justify-end gap-4 text-[10px] text-slate-400 border-t border-slate-100 pt-2">
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-slate-200 rounded" />
+                <span>予算</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-emerald-500 rounded" />
+                <span>達成</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-amber-400 rounded" />
+                <span>-1億以内</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-red-400 rounded" />
+                <span>未達</span>
+              </div>
+            </div>
+          </div>
+
           {/* 当月パイプライン - 月次締めが完了した月のみ表示 */}
           {currentData?.isClosed ? (
             <div className="bg-white rounded-lg border border-slate-200 p-4">
