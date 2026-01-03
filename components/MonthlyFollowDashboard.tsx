@@ -13,6 +13,12 @@ import {
   getCurrentClosedMonth,
   fyBudget,
 } from '@/lib/monthlyData';
+import {
+  pipelineStages,
+  calculatePipelineSummary,
+  getWeightedTotal,
+  getGrossTotal,
+} from '@/lib/pipelineData';
 import MonthlyGraphDashboard from './MonthlyGraphDashboard';
 
 // ビューモード
@@ -97,6 +103,11 @@ export default function MonthlyFollowDashboard() {
     };
   }, [currentData, ytdData, forecastData]);
 
+  // パイプライン（Sales Insightから取得）
+  const pipelineSummary = useMemo(() => calculatePipelineSummary(), []);
+  const pipelineWeighted = useMemo(() => getWeightedTotal(), []);
+  const pipelineGross = useMemo(() => getGrossTotal(), []);
+
   const isTableView = viewMode === 'table';
 
   return (
@@ -176,8 +187,8 @@ export default function MonthlyFollowDashboard() {
         </div>
       </div>
 
-      {/* サマリーカード */}
-      <div className="grid grid-cols-5 gap-3">
+      {/* サマリーカード（上段：実績系） */}
+      <div className="grid grid-cols-4 gap-3">
         {/* 当月売上 */}
         <div className={`rounded-lg p-3 ${summary.revenue != null ? (summary.revenueRate != null && summary.revenueRate >= -5 ? 'bg-emerald-50' : 'bg-red-50') : 'bg-slate-50'}`}>
           <div className="text-xs text-slate-500">当月売上</div>
@@ -200,18 +211,6 @@ export default function MonthlyFollowDashboard() {
           )}
         </div>
 
-        {/* 通期見込 */}
-        <div className={`rounded-lg p-3 ${summary.forecast != null ? (summary.forecastRate != null && summary.forecastRate >= -5 ? 'bg-emerald-50' : 'bg-red-50') : 'bg-slate-50'}`}>
-          <div className="text-xs text-slate-500">通期見込</div>
-          <div className="text-xl font-bold">{summary.forecast != null ? `${summary.forecast.toFixed(1)}` : '-'}<span className="text-xs font-normal text-slate-500 ml-1">億円</span></div>
-          {summary.forecastRate != null && (
-            <div className={`text-xs ${summary.forecastRate >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-              予算比 {summary.forecastRate >= 0 ? '+' : ''}{summary.forecastRate.toFixed(1)}%
-            </div>
-          )}
-          <div className="text-[10px] text-slate-400">予算: {fyBudget.revenue}億円</div>
-        </div>
-
         {/* 順調KPI */}
         <div className={`rounded-lg p-3 ${summary.goodCount >= kpiDefinitions.length * 0.6 ? 'bg-emerald-50' : 'bg-amber-50'}`}>
           <div className="text-xs text-slate-500">順調KPI</div>
@@ -222,6 +221,77 @@ export default function MonthlyFollowDashboard() {
         <div className={`rounded-lg p-3 ${summary.criticalCount === 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
           <div className="text-xs text-slate-500">要対策KPI</div>
           <div className={`text-xl font-bold ${summary.criticalCount === 0 ? 'text-emerald-700' : 'text-red-700'}`}>{summary.criticalCount}<span className="text-xs font-normal text-slate-500 ml-1">件</span></div>
+        </div>
+      </div>
+
+      {/* 通期見込 + パイプライン */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* 通期見込（左） */}
+        <div className={`rounded-lg p-4 ${summary.forecast != null ? (summary.forecastRate != null && summary.forecastRate >= -5 ? 'bg-emerald-50' : 'bg-red-50') : 'bg-slate-50'}`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-medium text-slate-700">通期見込（実績ベース）</div>
+            <div className="text-[10px] text-slate-400">予算: {fyBudget.revenue}億円</div>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <div className="text-3xl font-bold">{summary.forecast != null ? `${summary.forecast.toFixed(1)}` : '-'}</div>
+            <span className="text-sm text-slate-500">億円</span>
+            {summary.forecastRate != null && (
+              <span className={`text-sm font-medium ${summary.forecastRate >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                ({summary.forecastRate >= 0 ? '+' : ''}{summary.forecastRate.toFixed(1)}%)
+              </span>
+            )}
+          </div>
+          <div className="mt-2 text-[10px] text-slate-400">
+            確定売上 + 残り月平均予算
+          </div>
+        </div>
+
+        {/* パイプライン積み上げ（右）- Sales Insightから */}
+        <div className="rounded-lg p-4 bg-indigo-50 border border-indigo-100">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-medium text-indigo-800">案件パイプライン</div>
+            <div className="text-[10px] text-indigo-400">from Sales Insight</div>
+          </div>
+          <div className="flex items-baseline gap-2 mb-3">
+            <div className="text-3xl font-bold text-indigo-700">{pipelineWeighted.toFixed(1)}</div>
+            <span className="text-sm text-indigo-500">億円</span>
+            <span className="text-[10px] text-indigo-400">（加重見込）</span>
+          </div>
+
+          {/* ABCD内訳 */}
+          <div className="space-y-1.5">
+            {pipelineStages.map(stage => {
+              const data = pipelineSummary.find(s => s.stage === stage.id);
+              const barWidth = data ? (data.totalAmount / pipelineGross) * 100 : 0;
+              return (
+                <div key={stage.id} className="flex items-center gap-2 text-xs">
+                  <span className={`w-16 flex items-center gap-1 ${stage.color}`}>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${stage.bgColor}`}>
+                      {stage.id}
+                    </span>
+                    <span>{stage.probability}%</span>
+                  </span>
+                  <div className="flex-1 h-4 bg-white/60 rounded overflow-hidden">
+                    <div
+                      className={`h-full ${stage.bgColor}`}
+                      style={{ width: `${barWidth}%` }}
+                    />
+                  </div>
+                  <span className="w-16 text-right font-medium text-slate-700">
+                    {data?.totalAmount.toFixed(1) || '0'}億
+                  </span>
+                  <span className="w-8 text-right text-slate-400">
+                    {data?.count || 0}件
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-2 pt-2 border-t border-indigo-200 flex justify-between text-xs">
+            <span className="text-indigo-600">グロス合計</span>
+            <span className="font-bold text-indigo-700">{pipelineGross.toFixed(1)}億円</span>
+          </div>
         </div>
       </div>
 
