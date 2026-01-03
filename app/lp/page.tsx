@@ -40,27 +40,32 @@ export default function LandingPage() {
       <section className="pt-32 pb-20 bg-gradient-to-b from-slate-50 to-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
+            <div className="inline-block text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full mb-4 tracking-wide">
+              プロジェクト型ビジネス専用
+            </div>
             <h1 className="text-4xl sm:text-5xl font-bold text-slate-900 mb-4 leading-tight">
-              CSVを入れるだけ。<br />
-              <span className="text-indigo-600">経営が見える。</span>
+              財務会計が確定する<span className="text-indigo-600">前</span>に、<br />
+              目標達成の可否を判断する
             </h1>
-            <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-8">
-              高額なBIツールはもう要らない。<br />
-              会計ソフトのデータを入れるだけで、<br className="sm:hidden" />
-              プロ品質の経営ダッシュボードが手に入ります。
+            <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-6">
+              月次PLを待っていては遅すぎる。<br />
+              InsightBI は、経営者が「次の一手」を決めるための<br className="sm:hidden" />
+              管理会計ダッシュボードです。
             </p>
+            <div className="flex flex-wrap justify-center gap-2 mb-8">
+              {['建設業', 'システム開発・SI', 'コンサルティング', 'エンジニアリング'].map((t, i) => (
+                <span key={i} className="text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+                  {t}
+                </span>
+              ))}
+            </div>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
               <a href="#cta" className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl text-lg font-bold transition-colors shadow-lg shadow-indigo-600/30">
-                無料で試す
+                お問い合わせ
               </a>
-              <button className="w-full sm:w-auto flex items-center justify-center gap-2 text-slate-700 hover:text-slate-900 px-6 py-4">
-                <span className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </span>
-                <span className="font-medium">デモを見る</span>
-              </button>
+              <a href="#problem" className="w-full sm:w-auto flex items-center justify-center gap-2 text-slate-700 hover:text-slate-900 px-6 py-4 border border-slate-200 rounded-xl">
+                <span className="font-medium">詳しく見る</span>
+              </a>
             </div>
           </div>
 
@@ -112,80 +117,190 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ② 痛みの共感セクション */}
-      <section className="py-20 bg-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <h2 className="text-2xl sm:text-3xl font-bold text-center text-slate-900 mb-12">
-            こんなお悩み、ありませんか？
+      {/* ② 問題提起セクション */}
+      <section id="problem" className="py-20 bg-slate-50">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          <div className="text-xs font-semibold text-indigo-600 mb-2 tracking-wide">問題提起</div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
+            なぜ今のダッシュボードは経営判断に使えないのか
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <p className="text-slate-600 mb-8">
+            多くのBI・ERPは「財務会計で確定した後の世界」しか見ていません。<br />
+            しかしプロジェクト型ビジネスでは、問題は会計に出る前に起きています。
+          </p>
+
+          <div className="space-y-4">
             {[
-              { icon: '😓', title: '毎月の報告書作成に3日かかる', desc: '会計データをExcelに手作業で転記...' },
-              { icon: '📊', title: 'Power BIは難しすぎて挫折した', desc: 'SQLって何？ETLツールって必要なの？' },
-              { icon: '💰', title: 'BIツールに年100万は出せない', desc: '中小企業には負担が大きすぎる' },
-              { icon: '📈', title: 'データはあるのに活用できていない', desc: '会計ソフトに眠ったまま...' },
-              { icon: '🏗️', title: '建設業の勘定科目に対応したツールがない', desc: '工事別原価、出来高、完成工事高...' },
-              { icon: '❓', title: '「今月の粗利いくら？」に即答できない', desc: '社長に聞かれてもすぐ出せない' },
-            ].map((pain, i) => (
-              <div key={i} className="bg-slate-50 rounded-xl p-6 hover:shadow-lg transition-shadow">
-                <div className="text-3xl mb-3">{pain.icon}</div>
-                <h3 className="font-bold text-slate-800 mb-2">{pain.title}</h3>
-                <p className="text-sm text-slate-500">{pain.desc}</p>
+              {
+                title: '判断が常に1〜3ヶ月遅れる',
+                desc: '売上は未来に確定し、原価は後から効いてくる。なのにダッシュボードは「確定してから」しか見せない。会計が確定するのを待っていたら、手を打つタイミングを逃す。',
+              },
+              {
+                title: '原価管理は「管理会計」なのに、ダッシュボードがそれを前提にしていない',
+                desc: '管理会計では、原価は「結果」ではなく「コントロール対象」。原価率を前提に売上・利益を読む。しかし多くのダッシュボードは、売上が先、原価は後追い。',
+              },
+              {
+                title: '総原価が分かっている前提で設計されている',
+                desc: '建設・SI請負の実務では、総原価は最後まで分からない。追加・設計変更・天候・人手不足。分からないのに「確定値」を出すから、ダッシュボードが嘘をつく。',
+              },
+              {
+                title: '工事原価・未収金・未払金の振替が仕組みとして難しい',
+                desc: '原価発生と請求・検収のタイミングがズレる。工事別に原価を集めきれない。未成工事支出金への振替が手作業・月末調整・属人化。',
+              },
+            ].map((p, i) => (
+              <div key={i} className="bg-white rounded-xl p-6 border border-slate-200">
+                <h3 className="font-bold text-red-600 mb-2">{p.title}</h3>
+                <p className="text-sm text-slate-600">{p.desc}</p>
               </div>
             ))}
           </div>
-          <div className="text-center mt-10">
-            <div className="inline-flex items-center gap-2 text-indigo-600 font-medium">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-              </svg>
-              すべて、InsightBI Suite が解決します
+        </div>
+      </section>
+
+      {/* インサイト（核心メッセージ） */}
+      <section className="py-12 bg-slate-900">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+          <blockquote className="text-xl font-medium text-white leading-relaxed mb-4">
+            「正しい会計処理をしようとすると、経営判断が遅れる」<br />
+            この矛盾を、構造で解決する。
+          </blockquote>
+          <p className="text-slate-400 text-sm">
+            InsightBI は、財務会計で正しいかどうかより、経営判断に使えるかどうかを優先します。
+          </p>
+        </div>
+      </section>
+
+      {/* ③ 設計思想セクション */}
+      <section className="py-20 bg-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          <div className="text-xs font-semibold text-indigo-600 mb-2 tracking-wide">設計思想</div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
+            財務会計中心から、管理会計中心へ
+          </h2>
+          <p className="text-slate-600 mb-8">
+            目的が違うのに、同じ構造を使っていることが問題の本質です。
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+            {/* 現状 */}
+            <div className="bg-red-50 rounded-xl p-6 border border-red-200">
+              <h3 className="text-xs font-bold text-red-600 mb-4 tracking-wide">現状のダッシュボード</h3>
+              <ul className="space-y-2 text-sm text-slate-600">
+                {['中心は財務会計', '売上は確定値', '原価は結果', '原価率は表示するだけ', '未収未払は会計処理', 'ダッシュボードは集計ツール'].map((item, i) => (
+                  <li key={i} className="flex items-center gap-2">
+                    <span className="text-red-400">→</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* InsightBI */}
+            <div className="bg-indigo-50 rounded-xl p-6 border border-indigo-200">
+              <h3 className="text-xs font-bold text-indigo-600 mb-4 tracking-wide">InsightBI</h3>
+              <ul className="space-y-2 text-sm text-slate-700">
+                {['中心は管理会計', '売上は「状態」で見る', '原価はコントロール対象', '原価率は判断軸', '未収未払はリスク信号', 'ダッシュボードは意思決定ツール'].map((item, i) => (
+                  <li key={i} className="flex items-center gap-2 font-medium">
+                    <span className="text-indigo-500">→</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ③ 解決策セクション */}
-      <section className="py-20 bg-gradient-to-b from-indigo-50 to-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <h2 className="text-2xl sm:text-3xl font-bold text-center text-slate-900 mb-4">
-            3ステップで、経営ダッシュボードが手に入る
+      {/* 3レイヤー構造 */}
+      <section className="py-20 bg-slate-50">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          <div className="text-xs font-semibold text-indigo-600 mb-2 tracking-wide">構造</div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
+            売上・利益は「確定値」ではなく「3つの状態」で見る
           </h2>
-          <p className="text-center text-slate-600 mb-12">専門知識は一切不要です</p>
+          <p className="text-slate-600 mb-8">
+            売上を1つの数字に決めた瞬間、他が見えなくなる。InsightBI は3レイヤーで構造的に把握します。
+          </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+          <div className="space-y-3">
             {[
-              { step: '1', icon: '📁', title: 'CSVをアップロード', desc: '会計ソフトからCSVをエクスポートして、ドラッグ＆ドロップ' },
-              { step: '2', icon: '🔄', title: '自動で変換', desc: 'AIが自動でデータを整形。列の対応付けも自動提案' },
-              { step: '3', icon: '📊', title: 'ダッシュボード完成！', desc: 'すぐに経営状況が見える。更新も毎月CSVを入れるだけ' },
-            ].map((s, i) => (
-              <div key={i} className="relative">
-                {i < 2 && (
-                  <div className="hidden md:block absolute top-1/2 right-0 translate-x-1/2 -translate-y-1/2 text-indigo-300 text-2xl">→</div>
-                )}
-                <div className="bg-white rounded-2xl p-8 text-center shadow-lg border border-indigo-100">
-                  <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold text-xl mx-auto mb-4">
-                    {s.step}
+              { badge: '会計', badgeColor: 'bg-slate-200 text-slate-600', title: 'Accounting Revenue', desc: '完成基準・進行基準・請求基準。財務諸表と一致する確定売上。', role: '結果確認', main: false },
+              { badge: '経営', badgeColor: 'bg-indigo-600 text-white', title: 'Management Revenue', desc: '内部進捗 × 見積総額。最新見込み原価に基づく将来着地予測。', role: '意思決定の主役', main: true },
+              { badge: '現金', badgeColor: 'bg-amber-400 text-white', title: 'Cash Revenue', desc: '請求額・入金額・滞留額。実際のお金の動き。', role: '資金繰り警戒', main: false },
+            ].map((layer, i) => (
+              <div key={i} className={`p-5 rounded-xl border ${layer.main ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-200'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs font-bold px-2 py-1 rounded ${layer.badgeColor}`}>{layer.badge}</span>
+                    <div>
+                      <h3 className="font-semibold text-slate-800">{layer.title}</h3>
+                      <p className="text-sm text-slate-500">{layer.desc}</p>
+                    </div>
                   </div>
-                  <div className="text-4xl mb-4">{s.icon}</div>
-                  <h3 className="font-bold text-slate-800 text-lg mb-2">{s.title}</h3>
-                  <p className="text-sm text-slate-500">{s.desc}</p>
+                  <span className={`text-xs ${layer.main ? 'text-indigo-600 font-bold' : 'text-slate-400'}`}>{layer.role}</span>
                 </div>
               </div>
             ))}
           </div>
+        </div>
+      </section>
 
-          <div className="bg-white rounded-xl p-6 border border-indigo-200 max-w-2xl mx-auto">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">💡</span>
-              <div>
-                <h4 className="font-bold text-slate-800 mb-1">ポイント：ETLツールは不要です</h4>
-                <p className="text-sm text-slate-600">
-                  通常、BIツールを使うには「ETL」と呼ばれるデータ変換ツール（年間50〜200万円）が必要です。
-                  InsightBI Suite は独自の変換エンジンを内蔵。追加費用なしで、CSVを入れるだけで使えます。
-                </p>
+      {/* 9つのKPI */}
+      <section id="kpi" className="py-20 bg-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          <div className="text-xs font-semibold text-indigo-600 mb-2 tracking-wide">KPI</div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
+            目標達成を判断するための9つの指標
+          </h2>
+          <p className="text-slate-600 mb-8">
+            すべてが経営判断に直結。見た瞬間に「やる／やらない」が決まる。
+          </p>
+
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { num: '01', title: '着地売上見込み', desc: '確度加重で算出' },
+              { num: '02', title: '売上目標ギャップ', desc: '今後積むべき売上' },
+              { num: '03', title: '確定売上', desc: '受注済み、守るべき売上' },
+              { num: '04', title: '見込み売上の質', desc: '確度別の構成' },
+              { num: '05', title: '新規売上比率', desc: '成長構造の依存度' },
+              { num: '06', title: '既存顧客の追加余地', desc: '最短で積める領域' },
+              { num: '07', title: '案件別粗利率の劣化', desc: '利益を失っていないか' },
+              { num: '08', title: '原価消化 vs 進捗', desc: '赤字化の予兆' },
+              { num: '09', title: '売上・案件の集中度', desc: '依存リスク' },
+            ].map((kpi, i) => (
+              <div key={i} className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                <div className="text-xs font-bold text-indigo-600 mb-1">{kpi.num}</div>
+                <h3 className="font-semibold text-slate-800 text-sm mb-1">{kpi.title}</h3>
+                <p className="text-xs text-slate-500">{kpi.desc}</p>
               </div>
-            </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 仕組み（簡潔に） */}
+      <section className="py-20 bg-gradient-to-b from-indigo-50 to-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
+          <div className="text-xs font-semibold text-indigo-600 mb-2 tracking-wide">仕組み</div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
+            CSVを入れるだけで動く
+          </h2>
+          <p className="text-slate-600 mb-8">高額なETLツールや専門知識は不要。</p>
+
+          <div className="grid grid-cols-3 gap-6">
+            {[
+              { num: '1', title: 'CSVをアップロード', desc: '会計・営業管理からエクスポートしたCSVをそのまま' },
+              { num: '2', title: '自動でデータ変換', desc: '独自ETLエンジンが整形。AIがマッピングを提案' },
+              { num: '3', title: '判断に使う', desc: '3レイヤー × 9 KPIで即座に状況把握' },
+            ].map((s, i) => (
+              <div key={i} className="text-center">
+                <div className="w-10 h-10 bg-slate-900 text-white rounded-full flex items-center justify-center font-bold mx-auto mb-3">
+                  {s.num}
+                </div>
+                <h3 className="font-bold text-slate-800 mb-1">{s.title}</h3>
+                <p className="text-xs text-slate-500">{s.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
