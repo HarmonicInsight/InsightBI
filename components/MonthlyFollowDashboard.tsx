@@ -117,25 +117,37 @@ export default function MonthlyFollowDashboard() {
     return { accountingRevenue, managementRevenue, cashRevenue };
   }, [summary, pipelineWeighted, currentData]);
 
-  // 9つのKPI計算
-  const nineKPIs = useMemo(() => {
-    const targetGap = fyBudget.revenue - (summary.forecast || 0);
+  // 目標起点のKPI計算
+  const targetKPIs = useMemo(() => {
+    const annualTarget = fyBudget.revenue; // 通期目標
+    const confirmedYTD = summary.revenueYTD || 0; // 確定済み売上
+
+    // 継続売上（既存顧客からの見込み）= A案件の70% + 実績
     const pipelineA = pipelineSummary.find(s => s.stage === 'A')?.totalAmount || 0;
-    const pipelineB = pipelineSummary.find(s => s.stage === 'B')?.totalAmount || 0;
-    const qualityRatio = pipelineGross > 0 ? ((pipelineA + pipelineB) / pipelineGross) * 100 : 0;
+    const continuingRevenue = confirmedYTD + (pipelineA * 0.8); // 既存顧客継続分
+
+    // 新規必要額
+    const newBusinessRequired = Math.max(0, annualTarget - continuingRevenue - pipelineWeighted);
+
+    // 現在の積み上げ合計
+    const currentStack = confirmedYTD + pipelineWeighted;
+
+    // 目標との差
+    const gapToTarget = annualTarget - currentStack;
+
+    // 達成率
+    const achievementRate = (currentStack / annualTarget) * 100;
 
     return {
-      landingForecast: summary.forecast || 0,
-      targetGap,
-      confirmedRevenue: summary.revenueYTD || 0,
-      pipelineQuality: qualityRatio,
-      newCustomerRatio: 35, // サンプル値
-      upsellPotential: 12.5, // サンプル値
-      marginDegradation: currentData?.kpis.project_margin?.varianceRate || 0,
-      costVsProgress: -8.5, // サンプル値（原価超過率）
-      concentrationRisk: 28, // サンプル値（上位3案件の売上比率）
+      annualTarget,
+      confirmedYTD,
+      continuingRevenue,
+      newBusinessRequired,
+      currentStack,
+      gapToTarget,
+      achievementRate,
     };
-  }, [summary, pipelineSummary, pipelineGross, currentData]);
+  }, [summary, pipelineSummary, pipelineWeighted]);
 
   // 翻訳カード（現場→経営への翻訳）
   const translations = useMemo(() => {
@@ -174,17 +186,17 @@ export default function MonthlyFollowDashboard() {
     }
 
     // 売上未達
-    if (nineKPIs.targetGap > 0) {
+    if (targetKPIs.gapToTarget > 0) {
       items.push({
-        field: `目標まであと${nineKPIs.targetGap.toFixed(1)}億円`,
+        field: `目標まであと${targetKPIs.gapToTarget.toFixed(1)}億円`,
         accounting: '売上未達の見込み',
         management: 'パイプライン刈り取りが必要',
-        severity: nineKPIs.targetGap > 20 ? 'critical' : 'warning',
+        severity: targetKPIs.gapToTarget > 20 ? 'critical' : 'warning',
       });
     }
 
     return items;
-  }, [currentData, pipelineGross, nineKPIs]);
+  }, [currentData, pipelineGross, targetKPIs]);
 
   const isTableView = viewMode === 'table';
 
@@ -265,119 +277,95 @@ export default function MonthlyFollowDashboard() {
         </div>
       </div>
 
-      {/* ★ 3レイヤー売上（核心コンセプト） */}
+      {/* ★ 3レイヤー売上 */}
       <div className="bg-slate-900 rounded-xl p-4 text-white">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="text-sm font-bold">売上を3つの状態で見る</div>
-          <span className="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded">管理会計中心</span>
-        </div>
+        <div className="text-sm font-bold mb-3">売上を3つの状態で見る</div>
         <div className="grid grid-cols-3 gap-3">
           {/* 会計売上 */}
           <div className="bg-slate-800 rounded-lg p-3">
-            <div className="flex items-center gap-1 mb-1">
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-600 text-slate-300">会計</span>
-              <span className="text-[10px] text-slate-400">Accounting</span>
-            </div>
+            <div className="text-[10px] text-slate-400 mb-1">会計</div>
             <div className="text-2xl font-bold">{threeLayerRevenue.accountingRevenue.toFixed(1)}<span className="text-sm ml-1 text-slate-400">億円</span></div>
-            <div className="text-[10px] text-slate-500 mt-1">確定済み・財務諸表と一致</div>
+            <div className="text-[10px] text-slate-500 mt-1">確定済み</div>
           </div>
 
           {/* 経営売上（メイン） */}
           <div className="bg-indigo-600 rounded-lg p-3 ring-2 ring-indigo-400">
-            <div className="flex items-center gap-1 mb-1">
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500 text-white font-bold">経営</span>
-              <span className="text-[10px] text-indigo-200">Management</span>
-            </div>
+            <div className="text-[10px] text-indigo-200 mb-1">経営</div>
             <div className="text-2xl font-bold">{threeLayerRevenue.managementRevenue.toFixed(1)}<span className="text-sm ml-1 text-indigo-200">億円</span></div>
-            <div className="text-[10px] text-indigo-200 mt-1">意思決定の主役・見込み込み</div>
+            <div className="text-[10px] text-indigo-200 mt-1">見込み込み</div>
           </div>
 
           {/* 現金売上 */}
           <div className="bg-slate-800 rounded-lg p-3">
-            <div className="flex items-center gap-1 mb-1">
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-600 text-white">現金</span>
-              <span className="text-[10px] text-slate-400">Cash</span>
-            </div>
+            <div className="text-[10px] text-slate-400 mb-1">現金</div>
             <div className="text-2xl font-bold">{threeLayerRevenue.cashRevenue.toFixed(1)}<span className="text-sm ml-1 text-slate-400">億円</span></div>
-            <div className="text-[10px] text-slate-500 mt-1">現預金残高・資金繰り警戒</div>
+            <div className="text-[10px] text-slate-500 mt-1">現預金</div>
           </div>
         </div>
       </div>
 
-      {/* ★ 9つのKPI */}
+      {/* ★ 目標起点の売上構成 */}
       <div className="bg-white rounded-lg border border-slate-200 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-sm font-bold text-slate-800">目標達成を判断する9指標</div>
-          <span className="text-[10px] text-slate-400">見た瞬間に判断できる</span>
+        {/* 目標と達成率 */}
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="text-sm font-bold text-slate-800">通期目標</div>
+            <div className="text-3xl font-bold text-slate-900">{targetKPIs.annualTarget}<span className="text-sm text-slate-400 ml-1">億円</span></div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] text-slate-500">達成率</div>
+            <div className={`text-2xl font-bold ${targetKPIs.achievementRate >= 100 ? 'text-emerald-600' : targetKPIs.achievementRate >= 80 ? 'text-amber-600' : 'text-red-600'}`}>
+              {targetKPIs.achievementRate.toFixed(0)}<span className="text-sm ml-0.5">%</span>
+            </div>
+          </div>
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          {/* 1. 着地売上見込み */}
-          <div className="bg-slate-50 rounded-lg p-3">
-            <div className="text-[10px] text-indigo-600 font-bold mb-1">01 着地売上見込み</div>
-            <div className="text-xl font-bold text-slate-800">{nineKPIs.landingForecast.toFixed(1)}<span className="text-xs text-slate-400 ml-1">億</span></div>
-            <div className="text-[10px] text-slate-500">確度加重で算出</div>
-          </div>
 
-          {/* 2. 売上目標ギャップ */}
-          <div className={`rounded-lg p-3 ${nineKPIs.targetGap > 0 ? 'bg-red-50' : 'bg-emerald-50'}`}>
-            <div className="text-[10px] text-indigo-600 font-bold mb-1">02 売上目標ギャップ</div>
-            <div className={`text-xl font-bold ${nineKPIs.targetGap > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-              {nineKPIs.targetGap > 0 ? '-' : '+'}{Math.abs(nineKPIs.targetGap).toFixed(1)}<span className="text-xs text-slate-400 ml-1">億</span>
+        {/* 積み上げプログレスバー */}
+        <div className="mb-4">
+          <div className="h-6 bg-slate-100 rounded-full overflow-hidden flex">
+            {/* 確定売上 */}
+            <div
+              className="bg-slate-800 h-full flex items-center justify-center text-[10px] text-white font-medium"
+              style={{ width: `${(targetKPIs.confirmedYTD / targetKPIs.annualTarget) * 100}%` }}
+            >
+              {targetKPIs.confirmedYTD > targetKPIs.annualTarget * 0.1 && '確定'}
             </div>
-            <div className="text-[10px] text-slate-500">今後積むべき売上</div>
-          </div>
-
-          {/* 3. 確定売上 */}
-          <div className="bg-slate-50 rounded-lg p-3">
-            <div className="text-[10px] text-indigo-600 font-bold mb-1">03 確定売上</div>
-            <div className="text-xl font-bold text-slate-800">{nineKPIs.confirmedRevenue.toFixed(1)}<span className="text-xs text-slate-400 ml-1">億</span></div>
-            <div className="text-[10px] text-slate-500">受注済み・守るべき</div>
-          </div>
-
-          {/* 4. 見込み売上の質 */}
-          <div className={`rounded-lg p-3 ${nineKPIs.pipelineQuality >= 50 ? 'bg-emerald-50' : 'bg-amber-50'}`}>
-            <div className="text-[10px] text-indigo-600 font-bold mb-1">04 見込み売上の質</div>
-            <div className="text-xl font-bold text-slate-800">{nineKPIs.pipelineQuality.toFixed(0)}<span className="text-xs text-slate-400 ml-1">%</span></div>
-            <div className="text-[10px] text-slate-500">A+B案件の比率</div>
-          </div>
-
-          {/* 5. 新規売上比率 */}
-          <div className="bg-slate-50 rounded-lg p-3">
-            <div className="text-[10px] text-indigo-600 font-bold mb-1">05 新規売上比率</div>
-            <div className="text-xl font-bold text-slate-800">{nineKPIs.newCustomerRatio}<span className="text-xs text-slate-400 ml-1">%</span></div>
-            <div className="text-[10px] text-slate-500">成長構造の依存度</div>
-          </div>
-
-          {/* 6. 既存追加余地 */}
-          <div className="bg-slate-50 rounded-lg p-3">
-            <div className="text-[10px] text-indigo-600 font-bold mb-1">06 既存顧客の追加余地</div>
-            <div className="text-xl font-bold text-slate-800">{nineKPIs.upsellPotential}<span className="text-xs text-slate-400 ml-1">億</span></div>
-            <div className="text-[10px] text-slate-500">最短で積める領域</div>
-          </div>
-
-          {/* 7. 粗利率の劣化 */}
-          <div className={`rounded-lg p-3 ${nineKPIs.marginDegradation >= -5 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-            <div className="text-[10px] text-indigo-600 font-bold mb-1">07 案件別粗利率の劣化</div>
-            <div className={`text-xl font-bold ${nineKPIs.marginDegradation >= -5 ? 'text-emerald-600' : 'text-red-600'}`}>
-              {nineKPIs.marginDegradation >= 0 ? '+' : ''}{nineKPIs.marginDegradation.toFixed(1)}<span className="text-xs text-slate-400 ml-1">%</span>
+            {/* パイプライン加重 */}
+            <div
+              className="bg-indigo-500 h-full flex items-center justify-center text-[10px] text-white font-medium"
+              style={{ width: `${(pipelineWeighted / targetKPIs.annualTarget) * 100}%` }}
+            >
+              {pipelineWeighted > targetKPIs.annualTarget * 0.1 && '見込み'}
             </div>
-            <div className="text-[10px] text-slate-500">利益を失っていないか</div>
+          </div>
+          <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+            <span>0</span>
+            <span>{targetKPIs.annualTarget}億円</span>
+          </div>
+        </div>
+
+        {/* 構成内訳 */}
+        <div className="grid grid-cols-4 gap-2">
+          <div className="bg-slate-800 text-white rounded-lg p-3">
+            <div className="text-[10px] text-slate-300 mb-1">確定売上</div>
+            <div className="text-xl font-bold">{targetKPIs.confirmedYTD.toFixed(1)}<span className="text-xs text-slate-400 ml-0.5">億</span></div>
           </div>
 
-          {/* 8. 原価消化 vs 進捗 */}
-          <div className={`rounded-lg p-3 ${nineKPIs.costVsProgress >= -5 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-            <div className="text-[10px] text-indigo-600 font-bold mb-1">08 原価消化 vs 進捗</div>
-            <div className={`text-xl font-bold ${nineKPIs.costVsProgress >= -5 ? 'text-emerald-600' : 'text-red-600'}`}>
-              {nineKPIs.costVsProgress >= 0 ? '+' : ''}{nineKPIs.costVsProgress.toFixed(1)}<span className="text-xs text-slate-400 ml-1">%</span>
+          <div className="bg-indigo-100 rounded-lg p-3">
+            <div className="text-[10px] text-indigo-600 mb-1">継続見込</div>
+            <div className="text-xl font-bold text-indigo-700">{targetKPIs.continuingRevenue.toFixed(1)}<span className="text-xs text-slate-400 ml-0.5">億</span></div>
+          </div>
+
+          <div className="bg-emerald-100 rounded-lg p-3">
+            <div className="text-[10px] text-emerald-600 mb-1">現在の積み上げ</div>
+            <div className="text-xl font-bold text-emerald-700">{targetKPIs.currentStack.toFixed(1)}<span className="text-xs text-slate-400 ml-0.5">億</span></div>
+          </div>
+
+          <div className={`rounded-lg p-3 ${targetKPIs.newBusinessRequired > 0 ? 'bg-red-100' : 'bg-emerald-100'}`}>
+            <div className={`text-[10px] mb-1 ${targetKPIs.newBusinessRequired > 0 ? 'text-red-600' : 'text-emerald-600'}`}>新規必要額</div>
+            <div className={`text-xl font-bold ${targetKPIs.newBusinessRequired > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+              {targetKPIs.newBusinessRequired.toFixed(1)}<span className="text-xs text-slate-400 ml-0.5">億</span>
             </div>
-            <div className="text-[10px] text-slate-500">赤字化の予兆</div>
-          </div>
-
-          {/* 9. 集中度 */}
-          <div className={`rounded-lg p-3 ${nineKPIs.concentrationRisk <= 30 ? 'bg-emerald-50' : 'bg-amber-50'}`}>
-            <div className="text-[10px] text-indigo-600 font-bold mb-1">09 売上・案件の集中度</div>
-            <div className="text-xl font-bold text-slate-800">{nineKPIs.concentrationRisk}<span className="text-xs text-slate-400 ml-1">%</span></div>
-            <div className="text-[10px] text-slate-500">依存リスク（Top3比率）</div>
           </div>
         </div>
       </div>
