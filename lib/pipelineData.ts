@@ -1,5 +1,8 @@
 // 案件パイプラインデータ（Sales Insightから取得想定）
 
+// データ取得時点
+export const pipelineAsOf = '2025-09-15 18:00';
+
 export type PipelineStage = 'A' | 'B' | 'C' | 'D';
 
 export interface PipelineStageConfig {

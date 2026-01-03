@@ -17,6 +17,7 @@ import {
   calculatePipelineSummary,
   getWeightedTotal,
   getGrossTotal,
+  pipelineAsOf,
 } from '@/lib/pipelineData';
 import MonthlyGraphDashboard from './MonthlyGraphDashboard';
 
@@ -182,35 +183,36 @@ export default function MonthlyFollowDashboard() {
 
           {/* 目標 vs 積み上げ */}
           <div className="bg-white rounded-lg border border-slate-200 p-4">
-            {/* 目標と達成率 */}
+            {/* 目標 → 積み上げ → 差分 */}
             <div className="flex items-center justify-between mb-4">
               <div>
                 <div className="text-[10px] text-slate-500">通期目標</div>
                 <div className="text-3xl font-bold text-slate-900">{targetKPIs.annualTarget}<span className="text-sm text-slate-400 ml-1">億円</span></div>
               </div>
+              <div className="text-2xl text-slate-300">−</div>
               <div className="text-center">
-                <div className={`text-3xl font-bold ${targetKPIs.achievementRate >= 100 ? 'text-emerald-600' : targetKPIs.achievementRate >= 80 ? 'text-amber-600' : 'text-red-600'}`}>
-                  {targetKPIs.achievementRate.toFixed(0)}<span className="text-sm ml-0.5">%</span>
-                </div>
-                <div className="text-[10px] text-slate-500">達成率</div>
-              </div>
-              <div className="text-right">
                 <div className="text-[10px] text-slate-500">現在の積み上げ</div>
                 <div className="text-3xl font-bold text-indigo-700">{targetKPIs.currentStack.toFixed(1)}<span className="text-sm text-slate-400 ml-1">億円</span></div>
+                <div className="text-[10px] text-slate-400">= 確定{targetKPIs.confirmedYTD.toFixed(0)}億 + 見込み{pipelineWeighted.toFixed(0)}億</div>
+              </div>
+              <div className="text-2xl text-slate-300">=</div>
+              <div className="text-right">
+                <div className="text-[10px] text-slate-500">あと必要</div>
+                <div className={`text-3xl font-bold ${targetKPIs.newBusinessRequired > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                  {targetKPIs.newBusinessRequired > 0 ? targetKPIs.newBusinessRequired.toFixed(0) : '0'}<span className="text-sm text-slate-400 ml-1">億円</span>
+                </div>
               </div>
             </div>
 
-            {/* プログレスバー */}
+            {/* プログレスバー（加重ベース） */}
             <div className="mb-4">
               <div className="h-8 bg-slate-100 rounded-lg overflow-hidden flex">
-                {/* 確定売上 */}
                 <div
                   className="bg-slate-800 h-full flex items-center justify-center text-[10px] text-white font-medium"
                   style={{ width: `${(targetKPIs.confirmedYTD / targetKPIs.annualTarget) * 100}%` }}
                 >
-                  確定 {targetKPIs.confirmedYTD.toFixed(0)}億
+                  確定
                 </div>
-                {/* パイプラインABCD */}
                 {pipelineStages.map(stage => {
                   const data = pipelineSummary.find(s => s.stage === stage.id);
                   const weighted = (data?.totalAmount || 0) * (stage.probability / 100);
@@ -222,49 +224,63 @@ export default function MonthlyFollowDashboard() {
                       className={`${stage.bgColor} h-full flex items-center justify-center text-[10px] font-medium ${stage.color}`}
                       style={{ width: `${widthPct}%` }}
                     >
-                      {widthPct > 5 && stage.id}
+                      {widthPct > 4 && `${stage.id}`}
                     </div>
                   );
                 })}
               </div>
               <div className="flex justify-between text-[10px] text-slate-400 mt-1">
                 <span>0</span>
-                <span className={targetKPIs.newBusinessRequired > 0 ? 'text-red-500 font-medium' : 'text-emerald-500'}>
-                  {targetKPIs.newBusinessRequired > 0 ? `あと${targetKPIs.newBusinessRequired.toFixed(0)}億必要` : '目標達成見込み'}
-                </span>
+                <span>達成率 {targetKPIs.achievementRate.toFixed(0)}%</span>
                 <span>{targetKPIs.annualTarget}億</span>
               </div>
             </div>
 
-            {/* 積み上げ内訳 */}
-            <div className="grid grid-cols-6 gap-2">
-              {/* 確定売上 */}
-              <div className="bg-slate-800 text-white rounded-lg p-2">
-                <div className="text-[10px] text-slate-300">確定</div>
-                <div className="text-lg font-bold">{targetKPIs.confirmedYTD.toFixed(0)}<span className="text-[10px] text-slate-400">億</span></div>
-              </div>
-              {/* パイプラインABCD */}
-              {pipelineStages.map(stage => {
-                const data = pipelineSummary.find(s => s.stage === stage.id);
-                return (
-                  <div key={stage.id} className={`${stage.bgColor} rounded-lg p-2`}>
-                    <div className="flex items-center gap-1">
-                      <span className={`text-[10px] font-bold ${stage.color}`}>{stage.id}</span>
-                      <span className="text-[10px] text-slate-400">{stage.probability}%</span>
-                    </div>
-                    <div className={`text-lg font-bold ${stage.color}`}>{data?.totalAmount.toFixed(0) || '0'}<span className="text-[10px] text-slate-400">億</span></div>
-                    <div className="text-[10px] text-slate-400">{data?.count || 0}件</div>
-                  </div>
-                );
-              })}
-              {/* 新規必要 */}
-              <div className={`rounded-lg p-2 ${targetKPIs.newBusinessRequired > 0 ? 'bg-red-100' : 'bg-emerald-100'}`}>
-                <div className={`text-[10px] ${targetKPIs.newBusinessRequired > 0 ? 'text-red-600' : 'text-emerald-600'}`}>新規必要</div>
-                <div className={`text-lg font-bold ${targetKPIs.newBusinessRequired > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
-                  {targetKPIs.newBusinessRequired.toFixed(0)}<span className="text-[10px] text-slate-400">億</span>
-                </div>
-              </div>
+            {/* 積み上げ内訳テーブル */}
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-slate-600">パイプライン内訳</span>
+              <span className="text-[10px] text-slate-400">Sales Insight {pipelineAsOf} 時点</span>
             </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[10px] text-slate-500 border-b border-slate-200">
+                  <th className="py-1 text-left font-medium">区分</th>
+                  <th className="py-1 text-right font-medium">案件総額</th>
+                  <th className="py-1 text-right font-medium">確率</th>
+                  <th className="py-1 text-right font-medium">見込み（加重）</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-slate-100 bg-slate-50">
+                  <td className="py-2 font-medium text-slate-800">確定売上</td>
+                  <td className="py-2 text-right font-bold">{targetKPIs.confirmedYTD.toFixed(1)}億</td>
+                  <td className="py-2 text-right text-slate-400">100%</td>
+                  <td className="py-2 text-right font-bold text-slate-800">{targetKPIs.confirmedYTD.toFixed(1)}億</td>
+                </tr>
+                {pipelineStages.map(stage => {
+                  const data = pipelineSummary.find(s => s.stage === stage.id);
+                  const raw = data?.totalAmount || 0;
+                  const weighted = raw * (stage.probability / 100);
+                  return (
+                    <tr key={stage.id} className="border-b border-slate-100">
+                      <td className="py-2">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${stage.bgColor} ${stage.color}`}>{stage.id}</span>
+                        <span className="text-slate-500 ml-1 text-xs">{data?.count || 0}件</span>
+                      </td>
+                      <td className="py-2 text-right text-slate-600">{raw.toFixed(1)}億</td>
+                      <td className="py-2 text-right text-slate-400">×{stage.probability}%</td>
+                      <td className={`py-2 text-right font-medium ${stage.color}`}>{weighted.toFixed(1)}億</td>
+                    </tr>
+                  );
+                })}
+                <tr className="bg-indigo-50 font-bold">
+                  <td className="py-2 text-indigo-800">合計（積み上げ）</td>
+                  <td className="py-2 text-right text-slate-600">{(targetKPIs.confirmedYTD + pipelineGross).toFixed(1)}億</td>
+                  <td className="py-2 text-right"></td>
+                  <td className="py-2 text-right text-indigo-700">{targetKPIs.currentStack.toFixed(1)}億</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           {/* KPIジャンル別 */}
