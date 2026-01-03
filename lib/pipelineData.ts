@@ -117,6 +117,8 @@ export interface DepartmentSummary {
   department: Department;
   pipelineGross: number;
   pipelineWeighted: number;
+  pipelineTotal: number; // 総額（pipelineGrossと同じ）
+  dealCount: number; // 案件数
   currentStack: number; // 確定 + 加重見込み
   gap: number; // 目標との差
   achievementRate: number;
@@ -144,6 +146,8 @@ export function calculateDepartmentSummaries(): DepartmentSummary[] {
       department: dept,
       pipelineGross,
       pipelineWeighted,
+      pipelineTotal: pipelineGross,
+      dealCount: deptPipeline.length,
       currentStack,
       gap,
       achievementRate,
@@ -190,6 +194,8 @@ export function calculateDepartmentSummariesByMonth(month: number): DepartmentSu
       department: dept,
       pipelineGross,
       pipelineWeighted,
+      pipelineTotal: pipelineGross,
+      dealCount: deptPipeline.length,
       currentStack,
       gap,
       achievementRate,
