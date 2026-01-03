@@ -13,6 +13,10 @@ import {
   getCurrentClosedMonth,
   fyBudget,
 } from '@/lib/monthlyData';
+import MonthlyGraphDashboard from './MonthlyGraphDashboard';
+
+// ビューモード
+type ViewMode = 'table' | 'graph';
 
 // 数値フォーマット
 function fmt(value: number | null, unit: string): string {
@@ -33,6 +37,7 @@ function varColor(rate: number | null, isHigherBetter: boolean): string {
 
 export default function MonthlyFollowDashboard() {
   const currentClosedMonth = getCurrentClosedMonth();
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [selectedMonth, setSelectedMonth] = useState(currentClosedMonth);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
@@ -92,19 +97,57 @@ export default function MonthlyFollowDashboard() {
     };
   }, [currentData, ytdData, forecastData]);
 
+  const isTableView = viewMode === 'table';
+
   return (
     <div className="h-full overflow-auto p-4 space-y-4">
-      {/* ヘッダー */}
+      {/* ヘッダー with toggle */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900">月次フォロー</h1>
           <p className="text-sm text-slate-500">2025年度（4月〜3月）</p>
         </div>
-        <div className="text-sm text-slate-500">
-          締め済: <span className="font-bold text-indigo-600">{summary.closedMonths}</span>/12ヶ月
+        <div className="flex items-center gap-3">
+          <div className="text-sm text-slate-500">
+            締め済: <span className="font-bold text-indigo-600">{summary.closedMonths}</span>/12ヶ月
+          </div>
+          <div className="flex bg-slate-100 rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                isTableView ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <span className="flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+                一覧
+              </span>
+            </button>
+            <button
+              onClick={() => setViewMode('graph')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                !isTableView ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <span className="flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                グラフ
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* グラフビュー */}
+      {!isTableView && <MonthlyGraphDashboard />}
+
+      {/* テーブルビュー（月選択バー以降） */}
+      {isTableView && (
+        <>
       {/* 月選択バー（通期12ヶ月） */}
       <div className="bg-white rounded-lg border border-slate-200 p-2">
         <div className="flex gap-1">
@@ -345,6 +388,8 @@ export default function MonthlyFollowDashboard() {
             })}
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
