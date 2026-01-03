@@ -21,6 +21,7 @@ import { generateTimeSeriesData, formatCurrencyBillions } from '@/lib/timeSeries
 
 interface TimeSeriesChartProps {
   data?: TimeSeriesData;
+  compact?: boolean;
 }
 
 const MONTH_LABELS: { [key: string]: string } = {
@@ -30,7 +31,7 @@ const MONTH_LABELS: { [key: string]: string } = {
   '2026-01': '1月', '2026-02': '2月', '2026-03': '3月',
 };
 
-export default function TimeSeriesChart({ data: propData }: TimeSeriesChartProps) {
+export default function TimeSeriesChart({ data: propData, compact = false }: TimeSeriesChartProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<AnalysisPeriod>('full_year');
   const [showBudget, setShowBudget] = useState(true);
   const [showForecast, setShowForecast] = useState(true);
@@ -82,6 +83,28 @@ export default function TimeSeriesChart({ data: propData }: TimeSeriesChartProps
       note: item.note,
     }));
   }, [data]);
+
+  // Compact mode - simple chart only
+  if (compact) {
+    return (
+      <div className="h-40">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis dataKey="period" tick={{ fontSize: 10 }} stroke="#94A3B8" />
+            <YAxis tick={{ fontSize: 10 }} stroke="#94A3B8" />
+            <Tooltip
+              contentStyle={{ fontSize: 11, borderRadius: 8 }}
+              formatter={(value: number) => value != null ? `${value?.toFixed(1)}億` : '-'}
+            />
+            <Line type="monotone" dataKey="予算" stroke="#6366f1" strokeWidth={1} strokeDasharray="5 5" dot={false} />
+            <Area type="monotone" dataKey="見通し" fill="#fef3c7" stroke="#f59e0b" strokeWidth={1} fillOpacity={0.3} />
+            <Line type="monotone" dataKey="実績" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} connectNulls={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
